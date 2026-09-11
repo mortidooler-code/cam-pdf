@@ -1,10 +1,10 @@
-import React from 'react';
-import { Camera, ImagePlus, FileText, MoreVertical, Sparkles, ChevronLeft } from 'lucide-react';
+import React, { useRef } from 'react';
+import { Camera, ImagePlus, FileText, MoreVertical, Sparkles, ChevronLeft, ShieldCheck } from 'lucide-react';
 
 interface HomeScreenViewProps {
-  onNavigateToPreview: (docId: string) => void;
+  onNavigateToPreview: (docId: string, imageSrc?: string) => void;
   onLaunchCamera: () => void;
-  onLaunchGallery: () => void;
+  onLaunchGallery: (dataUrl?: string) => void;
 }
 
 export const HomeScreenView: React.FC<HomeScreenViewProps> = ({
@@ -12,6 +12,8 @@ export const HomeScreenView: React.FC<HomeScreenViewProps> = ({
   onLaunchCamera,
   onLaunchGallery
 }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const sampleDocs = [
     {
       id: 'doc_1',
@@ -29,8 +31,31 @@ export const HomeScreenView: React.FC<HomeScreenViewProps> = ({
     }
   ];
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        if (result) {
+          onLaunchGallery(result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-slate-50 text-slate-800 select-none overflow-hidden">
+      {/* Hidden File Input for Gallery simulation */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept="image/*"
+        className="hidden"
+      />
+
       {/* Top App Bar */}
       <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-2.5">
@@ -100,37 +125,43 @@ export const HomeScreenView: React.FC<HomeScreenViewProps> = ({
           <div className="w-8 h-8 rounded-full bg-emerald-500/15 flex items-center justify-center text-emerald-700 shrink-0 mt-0.5">
             <Sparkles className="w-4 h-4" />
           </div>
-          <div className="text-right">
-            <h4 className="text-xs font-bold text-emerald-900">نکته برای فتوکپی تمیزتر:</h4>
-            <p className="text-[11px] text-emerald-700 leading-relaxed mt-0.5">
-              مدرک را روی یک میز یا پس‌زمینه با رنگ متضاد قرار دهید و مطمئن شوید نور مستقیم بازتاب خیره‌کننده ایجاد نمی‌کند.
+          <div>
+            <h4 className="text-xs font-bold text-emerald-950 mb-0.5">راهنمای فتوکپی باکیفیت</h4>
+            <p className="text-[11px] text-emerald-800 leading-relaxed">
+              مدرک را روی زمینه تیره با نور مناسب قرار دهید. موتور فیلتر ColorMatrix سایه‌های کاغذ را خودکار پاک و سفید می‌کند.
             </p>
           </div>
         </div>
+
+        {/* Security & Offline Badge */}
+        <div className="bg-blue-50/60 border border-blue-200/60 rounded-2xl p-3 flex items-center gap-2.5 text-blue-900 text-xs">
+          <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+          <span>پردازش ۱۰۰٪ آفلاین و درون‌دستگاهی (بدون ارسال به اینترنت)</span>
+        </div>
       </div>
 
-      {/* Floating Bottom Action Bar (Two Large Buttons) */}
-      <div className="bg-white/95 backdrop-blur-md border-t border-slate-200 p-3.5 shadow-lg">
+      {/* Persistent Bottom Action Buttons */}
+      <footer className="bg-white border-t border-slate-200/90 p-3.5 shadow-lg">
         <div className="grid grid-cols-2 gap-3">
           {/* Gallery Button */}
           <button
-            onClick={onLaunchGallery}
-            className="h-13 rounded-2xl border-2 border-blue-600/30 bg-blue-50/50 hover:bg-blue-100/60 active:scale-98 text-blue-700 font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-xs"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center justify-center gap-2 py-3 px-3 rounded-2xl border-2 border-blue-600/30 bg-blue-50/50 hover:bg-blue-100/60 text-blue-700 font-bold text-xs transition-all active:scale-98"
           >
-            <ImagePlus className="w-5 h-5 text-blue-700" />
-            <span>انتخاب از گالری</span>
+            <ImagePlus className="w-4 h-4" />
+            <span>گالری (انتخاب عکس)</span>
           </button>
 
-          {/* Camera Button (Primary Action) */}
+          {/* Camera Button */}
           <button
             onClick={onLaunchCamera}
-            className="h-13 rounded-2xl bg-blue-700 hover:bg-blue-800 active:scale-98 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-700/25"
+            className="flex items-center justify-center gap-2 py-3 px-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-600/25 transition-all active:scale-98"
           >
-            <Camera className="w-5 h-5 text-white" />
-            <span>دوربین (ثبت مدرک)</span>
+            <Camera className="w-4 h-4" />
+            <span>دوربین (اسکن مستقیم)</span>
           </button>
         </div>
-      </div>
+      </footer>
     </div>
   );
 };

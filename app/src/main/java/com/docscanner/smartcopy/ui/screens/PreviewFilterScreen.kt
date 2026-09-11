@@ -1,10 +1,12 @@
 package com.docscanner.smartcopy.ui.screens
 
+import android.graphics.Bitmap
+import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -15,27 +17,50 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.docscanner.smartcopy.model.DocumentState
 import com.docscanner.smartcopy.model.FilterType
-import com.docscanner.smartcopy.ui.theme.PrimaryBlue
-import com.docscanner.smartcopy.ui.theme.SecondaryTeal
+import com.docscanner.smartcopy.util.DocumentFilterProcessor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PreviewFilterScreen(
     docId: String,
     onNavigateBack: () -> Unit,
-    onSaveDocument: (filterType: FilterType) -> Unit,
-    onShareDocument: (filterType: FilterType) -> Unit
+    onSaveDocument: (filterType: FilterType) -> Unit = {},
+    onShareDocument: (filterType: FilterType) -> Unit = {}
 ) {
-    // وضعیت فیلتر انتخابی (پیش‌فرض: فتوکپی هوشمند)
-    var selectedFilter by remember { mutableStateOf(FilterType.PHOTOCOPY) }
+    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+
+    // بارگذاری تصویر منبع (عکس واقعی گرفته شده یا تصویر مدرک نمونه)
+    val baseBitmap = remember {
+        DocumentState.activeBitmap ?: DocumentState.createSampleDocumentBitmap("گواهی تأیید هویت رسمی")
+    }
+
+    // وضعیت فیلتر انتخابی (پیش‌فرض: فتوکپی پرکنتراست هوشمند)
+    var selectedFilter by remember { mutableStateOf(FilterType.PHOTOCOPY) }
+    var isProcessing by remember { mutableStateOf(false) }
+    var processedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    // اجرای بلادرنگ پردازش بومی فیلتر تصویر در کُرروتین به محض تغییر فیلتر
+    LaunchedEffect(selectedFilter, baseBitmap) {
+        isProcessing = true
+        val result = withContext(Dispatchers.Default) {
+            DocumentFilterProcessor.applyFilter(baseBitmap, selectedFilter)
+        }
+        processedBitmap = result
+        isProcessing = false
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -58,24 +83,49 @@ fun PreviewFilterScreen(
                     }
                 },
                 actions = {
-                    // دکمه اشتراک‌گذاری
-                    IconButton(onClick = { onShareDocument(selectedFilter) }) {
+                    // دکمه اشتراک‌گذاری واقعی با Intent.ACTION_SEND
+                    IconButton(onClick = {
+                        val bitmapToShare = processedBitmap ?: baseBitmap
+                        DocumentFilterProcessor.shareBitmap(context, bitmapToShare, "مدرک اسکن‌شده")
+                        onShareDocument(selectedFilter)
+                    }) {
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = "اشتراک‌گذاری",
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
-                    // دکمه ذخیره
+
+                    // دکمه ذخیره واقعی در گالری و حافظه محلی
                     FilledTonalButton(
-                        onClick = { onSaveDocument(selectedFilter) },
+                        onClick = {
+                            val bitmapToSave = processedBitmap ?: baseBitmap
+                            val savedUri = DocumentFilterProcessor.saveBitmapToGallery(
+                                context = context,
+                                bitmap = bitmapToSave,
+                                title = "SmartDoc"
+                            )
+                            if (savedUri != null) {
+                                Toast.makeText(
+                                    context,
+                                    "سند با فیلتر «${selectedFilter.title}» در گالری ذخیره شد",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "سند با موفقیت ذخیره شد",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                            onSaveDocument(selectedFilter)
+                        },
                         shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
                         colors = ButtonDefaults.filledTonalButtonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.surface
-                        ),
-                        modifier = Modifier.padding(end = 8.dp)
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
                     ) {
                         Icon(
                             imageVector = Icons.Default.Check,
@@ -120,7 +170,7 @@ fun PreviewFilterScreen(
                             .padding(bottom = 10.dp)
                     )
 
-                    // دکمه‌های ۴ فیلتر
+                    // دکمه‌های ۴ فیلتر استاندارد
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -158,7 +208,7 @@ fun PreviewFilterScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        // نمایش تصویر مدرک در مرکز صفحه با کادر مرتب و زیبا
+        // نمایش تصویر پردازش‌شده مدرک در کادر زیبا
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -166,7 +216,56 @@ fun PreviewFilterScreen(
                 .padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
-            DocumentPreviewFrame(selectedFilter = selectedFilter)
+            val currentDisplayBitmap = processedBitmap ?: baseBitmap
+            DocumentPreviewCard(
+                bitmap = currentDisplayBitmap,
+                isProcessing = isProcessing
+            )
+        }
+    }
+}
+
+@Composable
+fun DocumentPreviewCard(
+    bitmap: Bitmap,
+    isProcessing: Boolean
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.94f)
+            .shadow(12.dp, RoundedCornerShape(12.dp)),
+        shape = RoundedCornerShape(12.dp),
+        color = Color.White,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "سند پردازش‌شده",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                contentScale = ContentScale.Fit
+            )
+
+            if (isProcessing) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -216,153 +315,5 @@ fun FilterButton(
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
             color = if (isSelected) activeColor else inactiveColor
         )
-    }
-}
-
-@Composable
-fun DocumentPreviewFrame(selectedFilter: FilterType) {
-    // شبیه‌ساز بصری برگه‌ی اسکن‌شده بر اساس فیلتر فعال
-    val paperBgColor = when (selectedFilter) {
-        FilterType.PHOTOCOPY -> Color(0xFFFFFFFF) // زمینه کاملاً سفید تمیز فتوکپی
-        FilterType.BLACK_AND_WHITE -> Color(0xFFF3F4F6)
-        FilterType.VIBRANT_COLOR -> Color(0xFFFAF9F6)
-        FilterType.ORIGINAL -> Color(0xFFEBE6DD) // رنگ کاغذ معمولی عکاسی شده
-    }
-
-    val textInkColor = when (selectedFilter) {
-        FilterType.PHOTOCOPY -> Color(0xFF000000) // جوهر مشکی پررنگ و شارپ
-        FilterType.BLACK_AND_WHITE -> Color(0xFF1E293B)
-        FilterType.VIBRANT_COLOR -> Color(0xFF0F172A)
-        FilterType.ORIGINAL -> Color(0xFF4A4036)
-    }
-
-    val stampColor = when (selectedFilter) {
-        FilterType.PHOTOCOPY -> Color(0xFF000000) // در فتوکپی مهر سیاه می‌شود
-        FilterType.BLACK_AND_WHITE -> Color(0xFF334155)
-        FilterType.VIBRANT_COLOR -> Color(0xFFDC2626) // مهر قرمز شارپ
-        FilterType.ORIGINAL -> Color(0xFF991B1B)
-    }
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .fillMaxHeight(0.92f)
-            .shadow(12.dp, RoundedCornerShape(8.dp)),
-        shape = RoundedCornerShape(8.dp),
-        color = paperBgColor,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            // سربرگ سند
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "جمهوری اسلامی ایران",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = textInkColor
-                    )
-                    Text(
-                        text = "گواهی تأیید هویت رسمی",
-                        fontSize = 11.sp,
-                        color = textInkColor.copy(alpha = 0.8f)
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .border(1.5.dp, stampColor, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "مهر تأیید",
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = stampColor
-                    )
-                }
-            }
-
-            Divider(
-                color = textInkColor.copy(alpha = 0.2f),
-                thickness = 1.dp,
-                modifier = Modifier.padding(vertical = 12.dp)
-            )
-
-            // خطوط متن شبیه‌سازی شده سند
-            Column(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.85f)
-                        .height(8.dp)
-                        .background(textInkColor.copy(alpha = 0.7f), RoundedCornerShape(2.dp))
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.95f)
-                        .height(8.dp)
-                        .background(textInkColor.copy(alpha = 0.6f), RoundedCornerShape(2.dp))
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.7f)
-                        .height(8.dp)
-                        .background(textInkColor.copy(alpha = 0.6f), RoundedCornerShape(2.dp))
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // جدول شبیه‌سازی شده مشخصات
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, textInkColor.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
-                        .padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(text = "شماره ملی: ۱۲۳۴۵۶۷۸۹۰", fontSize = 11.sp, color = textInkColor)
-                        Text(text = "تاریخ صدور: ۱۴۰۲/۰۱/۱۵", fontSize = 11.sp, color = textInkColor)
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(text = "وضعیت: تأیید نهایی سامانه", fontSize = 11.sp, color = textInkColor)
-                        Text(text = "کد رهگیری: 89412-A", fontSize = 11.sp, color = textInkColor)
-                    }
-                }
-            }
-
-            // برچسب حالت فیلتر پایین سند
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            ) {
-                Text(
-                    text = "فیلتر اعمال‌شده: ${selectedFilter.title}",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                )
-            }
-        }
     }
 }

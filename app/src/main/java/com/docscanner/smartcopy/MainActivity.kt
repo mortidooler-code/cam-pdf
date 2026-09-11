@@ -39,13 +39,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize()
                 ) {
                     AppNavHost(
-                        navController = navController,
-                        onLaunchCamera = {
-                            checkAndRequestCameraPermission()
-                        },
-                        onLaunchGallery = {
-                            // باز کردن گالری
-                        }
+                        navController = navController
                     )
                 }
             }

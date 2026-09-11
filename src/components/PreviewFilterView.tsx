@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { ArrowRight, Share2, Check, Printer, Contrast, Palette, Image as ImageIcon, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ArrowRight, Share2, Check, Printer, Contrast, Palette, Image as ImageIcon, ShieldCheck, Download } from 'lucide-react';
 
 interface PreviewFilterViewProps {
   docId: string;
+  imageSrc?: string | null;
   onNavigateBack: () => void;
   onShowToast: (message: string) => void;
 }
@@ -18,49 +19,146 @@ interface FilterItem {
 
 export const PreviewFilterView: React.FC<PreviewFilterViewProps> = ({
   docId: _docId,
+  imageSrc,
   onNavigateBack,
   onShowToast
 }) => {
   const [activeFilter, setActiveFilter] = useState<FilterId>('photocopy');
+  const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const filters: FilterItem[] = [
     {
       id: 'photocopy',
       name: 'فتوکپی',
-      desc: 'سفید کردن کاغذ و مشکی پررنگ کردن نوشته‌ها',
+      desc: 'سفید کردن کاغذ، محو سایه‌ها و مشکی پررنگ کردن جوهر نوشته‌ها',
       icon: Printer
     },
     {
       id: 'bw',
       name: 'سیاه‌سفید اداری',
-      desc: 'کنتراست استاندارد و تفکیک متن اسناد',
+      desc: 'طیف خاکستری تمیز و استاندارد با کنتراست متعادل',
       icon: Contrast
     },
     {
       id: 'vibrant',
       name: 'رنگی شفاف',
-      desc: 'بهبود وضوح و شارپ شدن رنگ‌ها و مهرها',
+      desc: 'افزایش اشباع و وضوح برای خواناتر شدن مهرهای رنگی',
       icon: Palette
     },
     {
       id: 'original',
       name: 'تصویر اصلی',
-      desc: 'حالت طبیعی عکس اولیه بدون افکت',
+      desc: 'حالت اولیه عکس بدون اعمال فیلتر',
       icon: ImageIcon
     }
   ];
 
+  // پردازش واقعی فیلترها روی تصویر انتخاب‌شده
+  useEffect(() => {
+    if (!imageSrc) {
+      setProcessedImageUrl(null);
+      return;
+    }
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = imageSrc;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+
+      if (activeFilter === 'original') {
+        setProcessedImageUrl(imageSrc);
+        return;
+      }
+
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = imgData.data;
+
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i];
+        const g = d[i + 1];
+        const b = d[i + 2];
+
+        if (activeFilter === 'photocopy') {
+          // فیلتر فتوکپی پرکنتراست (الگوریتم ColorMatrix اندروید)
+          const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+          // کنتراست شدید + شیفت نوری به سمت سفید
+          const contrast = 2.8;
+          const brightness = 42;
+          let val = (gray - 128) * contrast + 128 + brightness;
+          val = Math.max(0, Math.min(255, val));
+          d[i] = val;
+          d[i + 1] = val;
+          d[i + 2] = val;
+        } else if (activeFilter === 'bw') {
+          // فیلتر سیاه‌سفید اداری
+          const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+          const contrast = 1.35;
+          const brightness = 14;
+          let val = (gray - 128) * contrast + 128 + brightness;
+          val = Math.max(0, Math.min(255, val));
+          d[i] = val;
+          d[i + 1] = val;
+          d[i + 2] = val;
+        } else if (activeFilter === 'vibrant') {
+          // فیلتر رنگی شفاف با افزایش اشباع و کنتراست
+          const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+          const sat = 1.65;
+          let nr = gray + (r - gray) * sat;
+          let ng = gray + (g - gray) * sat;
+          let nb = gray + (b - gray) * sat;
+          // اندکی کنتراست
+          nr = (nr - 128) * 1.18 + 128 + 6;
+          ng = (ng - 128) * 1.18 + 128 + 6;
+          nb = (nb - 128) * 1.18 + 128 + 6;
+          d[i] = Math.max(0, Math.min(255, nr));
+          d[i + 1] = Math.max(0, Math.min(255, ng));
+          d[i + 2] = Math.max(0, Math.min(255, nb));
+        }
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+      setProcessedImageUrl(canvas.toDataURL('image/jpeg', 0.92));
+    };
+  }, [imageSrc, activeFilter]);
+
   const handleSave = () => {
     const current = filters.find((f) => f.id === activeFilter);
-    onShowToast(`سند با فیلتر «${current?.name}» در گالری و حافظه دستگاه ذخیره شد.`);
+    if (processedImageUrl) {
+      const a = document.createElement('a');
+      a.href = processedImageUrl;
+      a.download = `smart_doc_${activeFilter}.jpg`;
+      a.click();
+    }
+    onShowToast(`سند با فیلتر «${current?.name}» در گالری ذخیره شد.`);
   };
 
   const handleShare = () => {
     const current = filters.find((f) => f.id === activeFilter);
-    onShowToast(`آماده‌سازی فایل PDF فتوکپی (${current?.name}) برای اشتراک‌گذاری...`);
+    if (navigator.share && processedImageUrl) {
+      fetch(processedImageUrl)
+        .then((res) => res.blob())
+        .then((blob) => {
+          const file = new File([blob], 'document_scan.jpg', { type: 'image/jpeg' });
+          navigator.share({
+            title: 'مدرک اسکن‌شده',
+            text: 'ارسال‌شده از اپلیکیشن اسکنر و فتوکپی هوشمند مدارک',
+            files: [file]
+          }).catch(() => {});
+        });
+    } else {
+      onShowToast(`لینک اشتراک‌گذاری سند (${current?.name}) آماده گردید.`);
+    }
   };
 
-  // Filter-specific visual styles for the document simulator
+  // سبک‌های بصری برای شبیه‌ساز سند نمونه
   const getDocumentStyle = () => {
     switch (activeFilter) {
       case 'photocopy':
@@ -70,7 +168,7 @@ export const PreviewFilterView: React.FC<PreviewFilterViewProps> = ({
           subTextColor: 'text-black font-semibold',
           borderColor: 'border-black',
           stampBg: 'border-black text-black',
-          filterName: 'فتوکپی با کنتراست بالا (کاغذ کاملاً سفید)'
+          filterName: 'فتوکپی پرکنتراست (کاغذ کاملاً سفید)'
         };
       case 'bw':
         return {
@@ -98,7 +196,7 @@ export const PreviewFilterView: React.FC<PreviewFilterViewProps> = ({
           subTextColor: 'text-[#635748]',
           borderColor: 'border-[#c4b9a7]',
           stampBg: 'border-[#8c2d2d] text-[#8c2d2d]',
-          filterName: 'عکس اصلی (بدون پردازش)'
+          filterName: 'عکس اصلی (بدون افکت)'
         };
     }
   };
@@ -146,75 +244,85 @@ export const PreviewFilterView: React.FC<PreviewFilterViewProps> = ({
           <span>{docStyle.filterName}</span>
         </div>
 
-        {/* The Document Sheet */}
-        <div
-          className={`w-full max-w-[310px] aspect-[1/1.38] rounded-md shadow-2xl p-5 flex flex-col justify-between transition-colors duration-200 border ${docStyle.paperBg} ${docStyle.borderColor} ${docStyle.textColor}`}
-        >
-          {/* Header of Certificate */}
-          <div>
-            <div className="flex items-start justify-between border-b pb-2.5 mb-3">
-              <div>
-                <p className="text-[10px] tracking-wide font-bold">جمهوری اسلامی ایران</p>
-                <h4 className="text-xs font-extrabold mt-0.5">گواهی تأیید هویت و مدارک</h4>
-                <p className="text-[9px] opacity-75 mt-0.5">شناسه ثبتی: ۹۸۲۷۱-الف</p>
+        {/* Display real image or sample document */}
+        {processedImageUrl ? (
+          <div className="w-full max-w-[310px] aspect-[1/1.38] rounded-xl overflow-hidden shadow-2xl border border-slate-700/80 bg-black flex items-center justify-center">
+            <img
+              src={processedImageUrl}
+              alt="سند پردازش شده"
+              className="w-full h-full object-contain"
+            />
+          </div>
+        ) : (
+          <div
+            className={`w-full max-w-[310px] aspect-[1/1.38] rounded-md shadow-2xl p-5 flex flex-col justify-between transition-colors duration-200 border ${docStyle.paperBg} ${docStyle.borderColor} ${docStyle.textColor}`}
+          >
+            {/* Header of Certificate */}
+            <div>
+              <div className="flex items-start justify-between border-b pb-2.5 mb-3">
+                <div>
+                  <p className="text-[10px] tracking-wide font-bold">جمهوری اسلامی ایران</p>
+                  <h4 className="text-xs font-extrabold mt-0.5">گواهی تأیید هویت و مدارک</h4>
+                  <p className="text-[9px] opacity-75 mt-0.5">شناسه ثبتی: ۹۸۲۷۱-الف</p>
+                </div>
+
+                {/* Official Stamp */}
+                <div
+                  className={`w-11 h-11 rounded-full border-2 border-dashed flex flex-col items-center justify-center text-[7.5px] font-black leading-tight rotate-[-8deg] ${docStyle.stampBg}`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 mb-0.5" />
+                  <span>مهر تأیید</span>
+                </div>
               </div>
 
-              {/* Official Stamp */}
-              <div
-                className={`w-11 h-11 rounded-full border-2 border-dashed flex flex-col items-center justify-center text-[7.5px] font-black leading-tight rotate-[-8deg] ${docStyle.stampBg}`}
-              >
-                <ShieldCheck className="w-3.5 h-3.5 mb-0.5" />
-                <span>مهر تأیید</span>
+              {/* Simulated Document Text Paragraphs */}
+              <div className="space-y-1.5 opacity-90 text-[10px] leading-relaxed">
+                <p>بدین‌وسیله گواهی می‌شود مدارک هویتی پیوست طبق استعلام سامانه جامع احراز هویت کشور تطبیق داده شده و صحت مندرجات آن مورد تأیید رسمی می‌باشد.</p>
               </div>
             </div>
 
-            {/* Simulated Document Text Paragraphs */}
-            <div className="space-y-1.5 opacity-90 text-[10px] leading-relaxed">
-              <p>بدین‌وسیله گواهی می‌شود مدارک هویتی پیوست طبق استعلام سامانه جامع احراز هویت کشور تطبیق داده شده و صحت مندرجات آن مورد تأیید رسمی می‌باشد.</p>
-            </div>
-          </div>
-
-          {/* Form Data Grid */}
-          <div className={`border rounded p-2 text-[9px] space-y-1 my-2 ${docStyle.borderColor}`}>
-            <div className="flex justify-between">
-              <span className={docStyle.subTextColor}>نام صاحب سند:</span>
-              <span className="font-bold">مرتضی محمدی</span>
-            </div>
-            <div className="flex justify-between">
-              <span className={docStyle.subTextColor}>شماره ملی:</span>
-              <span className="font-bold font-mono">۰۰۱۲۳۴۵۶۷۸</span>
-            </div>
-            <div className="flex justify-between">
-              <span className={docStyle.subTextColor}>تاریخ صدور:</span>
-              <span className="font-bold">۱۴۰۳/۰۶/۲۰</span>
-            </div>
-            <div className="flex justify-between">
-              <span className={docStyle.subTextColor}>مرجع صادرکننده:</span>
-              <span className="font-bold">ثبت احوال کشور</span>
-            </div>
-          </div>
-
-          {/* Document Footer Barcode & Signature */}
-          <div className="pt-2 border-t flex items-end justify-between">
-            <div className="space-y-0.5">
-              <div className="h-4 flex items-center gap-[2px]">
-                {[4, 2, 6, 1, 4, 2, 7, 3, 2, 5, 2, 4, 3, 6, 2, 4, 2].map((w, idx) => (
-                  <span
-                    key={idx}
-                    className="h-full bg-current block"
-                    style={{ width: `${w}px` }}
-                  />
-                ))}
+            {/* Form Data Grid */}
+            <div className={`border rounded p-2 text-[9px] space-y-1 my-2 ${docStyle.borderColor}`}>
+              <div className="flex justify-between">
+                <span className={docStyle.subTextColor}>نام صاحب سند:</span>
+                <span className="font-bold">مرتضی محمدی</span>
               </div>
-              <p className="text-[7.5px] font-mono tracking-wider">DOC-89412-IR</p>
+              <div className="flex justify-between">
+                <span className={docStyle.subTextColor}>شماره ملی:</span>
+                <span className="font-bold font-mono">۰۰۱۲۳۴۵۶۷۸</span>
+              </div>
+              <div className="flex justify-between">
+                <span className={docStyle.subTextColor}>تاریخ صدور:</span>
+                <span className="font-bold">۱۴۰۳/۰۶/۲۰</span>
+              </div>
+              <div className="flex justify-between">
+                <span className={docStyle.subTextColor}>مرجع صادرکننده:</span>
+                <span className="font-bold">ثبت اسناد و املاک کشور</span>
+              </div>
             </div>
 
-            <div className="text-left">
-              <p className="text-[8px] font-bold">امضای مسئول صدور</p>
-              <div className="w-14 h-5 border-b border-dotted border-current"></div>
+            {/* Document Footer Barcode & Signature */}
+            <div className="pt-2 border-t flex items-end justify-between">
+              <div className="space-y-0.5">
+                <div className="h-4 flex items-center gap-[2px]">
+                  {[4, 2, 6, 1, 4, 2, 7, 3, 2, 5, 2, 4, 3, 6, 2, 4, 2].map((w, idx) => (
+                    <span
+                      key={idx}
+                      className="h-full bg-current block"
+                      style={{ width: `${w}px` }}
+                    />
+                  ))}
+                </div>
+                <p className="text-[7.5px] font-mono tracking-wider">DOC-89412-IR</p>
+              </div>
+
+              <div className="text-left">
+                <p className="text-[8px] font-bold">امضای مسئول صدور</p>
+                <div className="w-14 h-5 border-b border-dotted border-current"></div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Bottom Live Filter Selector Toolbar */}

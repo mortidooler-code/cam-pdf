@@ -70,40 +70,40 @@ export default function App() {
               <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
                 <div className="flex items-center gap-2.5 text-blue-400 font-bold text-sm">
                   <Sparkles className="w-4 h-4" />
-                  <span>ویژگی‌های طراحی‌شده در فاز اول UI/UX:</span>
+                  <span>قابلیت‌های متصل‌شده در فاز دوم (بدون هیچ وابستگی خارجی):</span>
                 </div>
 
                 <div className="space-y-3 text-xs leading-relaxed text-slate-300">
                   <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-800/50 border border-slate-800">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                     <div>
-                      <strong className="text-white font-bold block mb-0.5">صفحه اصلی (Home):</strong>
-                      اپبار تمیز فارسی «اسکنر مدارک»، لیست اسناد اخیر با کارت‌های مشخصات (عکس، تعداد صفحات و تاریخ)، همراه دو دکمه شناور بزرگ پایین صفحه برای دوربین و گالری.
+                      <strong className="text-white font-bold block mb-0.5">اتصال واقعی دوربین و گالری (Android ActivityResult):</strong>
+                      دوربین با لانچر استاندارد <code className="text-blue-300 font-mono">TakePicturePreview</code> و گالری با لانچر استاندارد <code className="text-blue-300 font-mono">GetContent</code> به صفحه پیش‌نمایش متصل شدند.
                     </div>
                   </div>
 
                   <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-800/50 border border-slate-800">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                     <div>
-                      <strong className="text-white font-bold block mb-0.5">صفحه پیش‌نمایش و فیلترها (Preview & Filter):</strong>
-                      کادر مرتب نمایش برگه سند با تغییر زنده بین ۴ حالت:
-                      فتوکپی (کاغذ سفید و جوهر مشکی پررنگ)، سیاه‌سفید اداری، رنگی شفاف و تصویر اصلی همراه دکمه‌های بالا (بازگشت، ذخیره، اشتراک‌گذاری).
+                      <strong className="text-white font-bold block mb-0.5">موتور پردازش فتوکپی (<code className="text-amber-300 font-mono">DocumentFilterProcessor</code>):</strong>
+                      ۱۰۰٪ آفلاین و با توابع نیتیو <code className="text-blue-300 font-mono">ColorMatrix</code> اندروید:
+                      فیلتر فتوکپی پرکنتراست (سفید کردن زمینه و پررنگ کردن جوهر)، فیلتر سیاه‌سفید اداری، فیلتر رنگی شفاف (مهرهای رنگی) و تصویر اصلی.
                     </div>
                   </div>
 
                   <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-800/50 border border-slate-800">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                     <div>
-                      <strong className="text-white font-bold block mb-0.5">خط لوله GitHub Actions (تولید APK):</strong>
-                      فایل <code className="text-blue-300 font-mono">.github/workflows/build-apk.yml</code> با جاوا ۱۷، اعطای مجوز اجرایی به gradlew، اجرای دستور <code className="text-amber-300 font-mono">assembleDebug --no-daemon</code> و آپلود فایل APK با نام <span className="text-emerald-400 font-semibold">scanner-debug-apk</span> آماده است.
+                      <strong className="text-white font-bold block mb-0.5">ذخیره و اشتراک‌گذاری استاندارد:</strong>
+                      دکمه «اشتراک‌گذاری» با <code className="text-blue-300 font-mono">Intent.ACTION_SEND</code> و دکمه «ذخیره» با <code className="text-blue-300 font-mono">MediaStore</code> تصویر نهایی را ذخیره و ارسال می‌کند.
                     </div>
                   </div>
 
                   <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-800/50 border border-slate-800">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                     <div>
-                      <strong className="text-white font-bold block mb-0.5">تنظیمات مانیفست و گریدل:</strong>
-                      پشتیبانی کامل راست‌چین (<code className="text-blue-300 font-mono">supportsRtl="true"</code>)، مجوز دوربین (<code className="text-blue-300 font-mono">CAMERA</code>) و معماری مدرن Material 3.
+                      <strong className="text-white font-bold block mb-0.5">بیلد فوق سریع و تضمینی در گیتهاب:</strong>
+                      هیچ پکیج یا کتابخانه سنگین جانبی (مثل OpenCV یا Room) اضافه نشد تا بیلد فایل نصبی در گیت‌هاب اکشنز بسیار سریع و بدون ریسک شکست انجام شود.
                     </div>
                   </div>
                 </div>

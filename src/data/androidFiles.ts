@@ -10,25 +10,37 @@ export const ANDROID_FILES: AndroidFileInfo[] = [
     path: '.github/workflows/build-apk.yml',
     name: 'build-apk.yml',
     type: 'workflow',
-    description: 'خط لوله خودکار گیت‌هاب اکشنز (Java 17 + assembleDebug + Upload Artifact APK)'
+    description: 'خط لوله خودکار گیت‌هاب اکشنز (Java 17 + بررسی و بازیابی خودکار Wrapper + assembleDebug + Upload Artifact APK)'
   },
   {
-    path: 'app/src/main/java/com/docscanner/smartcopy/MainActivity.kt',
-    name: 'MainActivity.kt',
+    path: 'app/src/main/java/com/docscanner/smartcopy/util/DocumentFilterProcessor.kt',
+    name: 'DocumentFilterProcessor.kt',
     type: 'kotlin',
-    description: 'اکتیویتی اصلی نیتیو اندروید با تنظیم تم کاتلین و لانچر درخواست مجوز دوربین'
+    description: 'موتور پردازش فیلترهای اسناد با ابزارهای داخلی SDK اندروید (ColorMatrix): فتوکپی پرکنتراست، سیاه‌سفید اداری، رنگی شفاف و توابع ذخیره در گالری و اشتراک‌گذاری'
+  },
+  {
+    path: 'app/src/main/java/com/docscanner/smartcopy/model/DocumentState.kt',
+    name: 'DocumentState.kt',
+    type: 'kotlin',
+    description: 'مدیریت استیت بیت‌مپ فعال سند، دیکود کردن تصویر گالری با ImageDecoder و تولید Canvas مدرک رسمی نمونه'
   },
   {
     path: 'app/src/main/java/com/docscanner/smartcopy/ui/screens/HomeScreen.kt',
     name: 'HomeScreen.kt',
     type: 'kotlin',
-    description: 'صفحه اصلی Jetpack Compose با لیست مدارک اخیر و دکمه‌های بزرگ دوربین و گالری'
+    description: 'صفحه اصلی Compose با اتصال مستقیم به دوربین (TakePicturePreview)، گالری (GetContent) و اسناد اخیر'
   },
   {
     path: 'app/src/main/java/com/docscanner/smartcopy/ui/screens/PreviewFilterScreen.kt',
     name: 'PreviewFilterScreen.kt',
     type: 'kotlin',
-    description: 'صفحه پیش‌نمایش و ۴ فیلتر هوشمند (فتوکپی، سیاه‌سفید، رنگی شفاف، اصلی)'
+    description: 'صفحه پیش‌نمایش و اعمال بلادرنگ فیلترها روی Bitmap، دکمه ذخیره در گالری (MediaStore) و اشتراک‌گذاری (Intent.ACTION_SEND)'
+  },
+  {
+    path: 'app/src/main/java/com/docscanner/smartcopy/MainActivity.kt',
+    name: 'MainActivity.kt',
+    type: 'kotlin',
+    description: 'اکتیویتی اصلی نیتیو اندروید با تنظیم تم کاتلین و راه‌اندازی AppNavHost'
   },
   {
     path: 'app/src/main/java/com/docscanner/smartcopy/ui/navigation/AppNavHost.kt',
@@ -40,13 +52,19 @@ export const ANDROID_FILES: AndroidFileInfo[] = [
     path: 'app/src/main/AndroidManifest.xml',
     name: 'AndroidManifest.xml',
     type: 'manifest',
-    description: 'مانیفست با مجوزهای دوربین (CAMERA) و پشتیبانی کامل راست‌چین (supportsRtl="true")'
+    description: 'مانیفست با مجوزهای دوربین (CAMERA)، تعریف FileProvider و پشتیبانی کامل راست‌چین (supportsRtl="true")'
+  },
+  {
+    path: 'app/src/main/res/xml/file_paths.xml',
+    name: 'file_paths.xml',
+    type: 'xml',
+    description: 'مسیرهای مجاز FileProvider برای اشتراک‌گذاری امن تصاویر مدرک اسکن‌شده بین برنامه‌ها'
   },
   {
     path: 'app/build.gradle.kts',
     name: 'app/build.gradle.kts',
     type: 'gradle',
-    description: 'اسکریپت بیلد ماژول اپ با وابستگی‌های استاندارد و پایدار Jetpack Compose'
+    description: 'اسکریپت بیلد ماژول اپ با وابستگی‌های استاندارد و پایدار Jetpack Compose (بدون هیچ وابستگی خارجی اضافه)'
   },
   {
     path: 'build.gradle.kts',
@@ -58,6 +76,6 @@ export const ANDROID_FILES: AndroidFileInfo[] = [
     path: 'settings.gradle.kts',
     name: 'settings.gradle.kts',
     type: 'gradle',
-    description: 'تنظیمات مخازن Google و MavenCentral و ماژول :app'
+    description: 'تنظیمات مخازن استاندارد گوگل و Maven Central'
   }
 ];

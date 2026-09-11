@@ -6,6 +6,7 @@ import { PreviewFilterView } from './PreviewFilterView';
 export const AndroidEmulator: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<'home' | 'preview'>('home');
   const [selectedDocId, setSelectedDocId] = useState<string>('doc_1');
+  const [activeImage, setActiveImage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (message: string) => {
@@ -15,21 +16,103 @@ export const AndroidEmulator: React.FC = () => {
     }, 3200);
   };
 
-  const handleNavigateToPreview = (docId: string) => {
+  const handleNavigateToPreview = (docId: string, imageSrc?: string) => {
     setSelectedDocId(docId);
+    if (imageSrc) {
+      setActiveImage(imageSrc);
+    } else {
+      setActiveImage(null);
+    }
     setCurrentScreen('preview');
   };
 
   const handleLaunchCamera = () => {
     setSelectedDocId('camera_scan');
+    // ساخت یک تصویر سند نمونه با پس‌زمینه طبیعی و سایه برای شبیه‌سازی دقیق عکس گرفته شده با دوربین
+    const canvas = document.createElement('canvas');
+    canvas.width = 600;
+    canvas.height = 840;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      // زمینه خاکستری/کرم رنگ میز و کاغذ عکاسی شده
+      ctx.fillStyle = '#dfd8ca';
+      ctx.fillRect(0, 0, 600, 840);
+
+      // سایه خفیف عکاسی با گوشی
+      const grad = ctx.createLinearGradient(0, 0, 600, 840);
+      grad.addColorStop(0, 'rgba(0,0,0,0.08)');
+      grad.addColorStop(1, 'rgba(0,0,0,0.18)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 600, 840);
+
+      // کادر سند
+      ctx.strokeStyle = '#8d7f6c';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(30, 30, 540, 780);
+
+      // متون سند
+      ctx.fillStyle = '#2c251c';
+      ctx.font = 'bold 24px Vazirmatn, Tahoma, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('جمهوری اسلامی ایران', 300, 90);
+      ctx.font = 'bold 20px Vazirmatn, Tahoma, sans-serif';
+      ctx.fillText('سند رسمی احراز هویت الکترونیکی', 300, 130);
+
+      ctx.beginPath();
+      ctx.moveTo(60, 160);
+      ctx.lineTo(540, 160);
+      ctx.strokeStyle = '#9c8e7b';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.textAlign = 'right';
+      ctx.font = '16px Vazirmatn, Tahoma, sans-serif';
+      ctx.fillText('نام و نام خانوادگی: مرتضی محمدی', 520, 220);
+      ctx.fillText('شماره ملی: ۰۰۱۲۳۴۵۶۷۸', 520, 260);
+      ctx.fillText('تاریخ اسکن دوربین: ۱۴۰۳/۰۶/۲۱', 520, 300);
+      ctx.fillText('وضعیت اصالت: تأیید شده', 520, 340);
+
+      // جدول مشخصات
+      ctx.strokeRect(60, 380, 480, 160);
+      ctx.beginPath();
+      ctx.moveTo(60, 430);
+      ctx.lineTo(540, 430);
+      ctx.moveTo(300, 380);
+      ctx.lineTo(300, 540);
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.font = '15px Vazirmatn, Tahoma, sans-serif';
+      ctx.fillText('شناسه رهگیری', 420, 410);
+      ctx.fillText('کد واحد اسکن', 180, 410);
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('IR-89412-COPY', 420, 480);
+      ctx.fillText('ST-0041', 180, 480);
+
+      // مهر قرمز
+      ctx.strokeStyle = '#b82a2a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(160, 680, 50, 0, 2 * Math.PI);
+      ctx.stroke();
+      ctx.fillStyle = '#b82a2a';
+      ctx.font = 'bold 14px Vazirmatn, Tahoma, sans-serif';
+      ctx.fillText('مهر رسمی', 160, 675);
+      ctx.fillText('ثبت اسناد', 160, 695);
+
+      setActiveImage(canvas.toDataURL('image/jpeg', 0.9));
+    }
     setCurrentScreen('preview');
-    showToast('دوربین فعال شد؛ تصویر سند دریافت و فیلتر فتوکپی اعمال شد.');
+    showToast('عکس از دوربین دریافت شد؛ فیلتر فتوکپی پرکنتراست به صورت خودکار اعمال شد.');
   };
 
-  const handleLaunchGallery = () => {
+  const handleLaunchGallery = (dataUrl?: string) => {
     setSelectedDocId('gallery_pick');
+    if (dataUrl) {
+      setActiveImage(dataUrl);
+    }
     setCurrentScreen('preview');
-    showToast('تصویر از گالری انتخاب شد؛ در حال پردازش کنتراست...');
+    showToast('تصویر با موفقیت انتخاب شد؛ موتور پردازش تصویر آماده است.');
   };
 
   return (
@@ -67,6 +150,7 @@ export const AndroidEmulator: React.FC = () => {
             ) : (
               <PreviewFilterView
                 docId={selectedDocId}
+                imageSrc={activeImage}
                 onNavigateBack={() => setCurrentScreen('home')}
                 onShowToast={showToast}
               />

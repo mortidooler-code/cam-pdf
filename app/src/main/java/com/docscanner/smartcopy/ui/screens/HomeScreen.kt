@@ -1,5 +1,10 @@
 package com.docscanner.smartcopy.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,7 +15,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
@@ -21,10 +25,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import com.docscanner.smartcopy.model.DocumentState
 import com.docscanner.smartcopy.model.ScannedDocument
 import com.docscanner.smartcopy.ui.theme.PrimaryBlue
 import com.docscanner.smartcopy.ui.theme.SecondaryTeal
@@ -32,10 +38,46 @@ import com.docscanner.smartcopy.ui.theme.SecondaryTeal
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    onNavigateToPreview: (docId: String) -> Unit,
-    onLaunchCamera: () -> Unit,
-    onLaunchGallery: () -> Unit
+    onNavigateToPreview: (docId: String) -> Unit
 ) {
+    val context = LocalContext.current
+
+    // لانچر استاندارد دوربین: ثبت مستقیم عکس مدرک با TakePicturePreview
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { capturedBitmap ->
+        if (capturedBitmap != null) {
+            DocumentState.activeBitmap = capturedBitmap
+            onNavigateToPreview("camera_scan")
+        }
+    }
+
+    // لانچر مجوز دوربین
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            cameraLauncher.launch(null)
+        } else {
+            Toast.makeText(context, "جهت ثبت عکس با دوربین به این دسترسی نیاز است", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // لانچر استاندارد گالری: انتخاب عکس از گالری با GetContent
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { selectedUri ->
+        if (selectedUri != null) {
+            val bitmap = DocumentState.decodeUriToBitmap(context, selectedUri)
+            if (bitmap != null) {
+                DocumentState.activeBitmap = bitmap
+                onNavigateToPreview("gallery_pick")
+            } else {
+                Toast.makeText(context, "خطا در بازخوانی تصویر از گالری", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     // دو آیتم نمونه اسناد اخیر در فاز اول
     val sampleDocuments = remember {
         listOf(
@@ -87,7 +129,9 @@ fun HomeScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* منوی بیشتر */ }) {
+                    IconButton(onClick = {
+                        Toast.makeText(context, "اسکنر هوشمند مدارک نسخه ۱.۰.۰", Toast.LENGTH_SHORT).show()
+                    }) {
                         Icon(
                             imageVector = Icons.Default.MoreVert,
                             contentDescription = "بیشتر",
@@ -114,9 +158,11 @@ fun HomeScreen(
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // دکمه بزرگ گالری
+                    // دکمه بزرگ گالری (اتصال واقعی با GetContent)
                     OutlinedButton(
-                        onClick = onLaunchGallery,
+                        onClick = {
+                            galleryLauncher.launch("image/*")
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .height(54.dp),
@@ -142,9 +188,20 @@ fun HomeScreen(
                         )
                     }
 
-                    // دکمه بزرگ دوربین (اکشن اصلی)
+                    // دکمه بزرگ دوربین (اتصال واقعی با TakePicturePreview و بررسی مجوز)
                     Button(
-                        onClick = onLaunchCamera,
+                        onClick = {
+                            val hasCameraPermission = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.CAMERA
+                            ) == PackageManager.PERMISSION_GRANTED
+
+                            if (hasCameraPermission) {
+                                cameraLauncher.launch(null)
+                            } else {
+                                permissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .height(54.dp),
@@ -204,7 +261,11 @@ fun HomeScreen(
             items(sampleDocuments) { doc ->
                 DocumentCard(
                     document = doc,
-                    onClick = { onNavigateToPreview(doc.id) }
+                    onClick = {
+                        // تولید خودکار نمونه سند با کیفیت بالا
+                        DocumentState.activeBitmap = DocumentState.createSampleDocumentBitmap(doc.title)
+                        onNavigateToPreview(doc.id)
+                    }
                 )
             }
 
