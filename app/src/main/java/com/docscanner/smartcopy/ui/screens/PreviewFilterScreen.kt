@@ -33,7 +33,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import com.docscanner.smartcopy.data.DocumentRepository
 import com.docscanner.smartcopy.model.DocumentState
 import com.docscanner.smartcopy.model.FilterType
 import com.docscanner.smartcopy.util.DocumentFilterProcessor
@@ -197,7 +196,7 @@ fun PreviewFilterScreen(
                         )
                     }
 
-                    // دکمه ذخیره تصویر جاری و ثبت در لیست مدارک اخیر
+                    // دکمه ذخیره تصویر جاری در گالری
                     FilledTonalButton(
                         onClick = {
                             val bitmapToSave = processedBitmap ?: baseBitmap
@@ -206,30 +205,10 @@ fun PreviewFilterScreen(
                                 bitmap = bitmapToSave,
                                 title = "SmartDoc_Page${activeIndex + 1}"
                             )
-
-                            // ثبت واقعی مدرک در مخزن اسناد محلی (دیتابیس اسناد اخیر)
-                            val allPagesToSave = if (pages.size > 1) {
-                                pages.map { it.processedBitmap ?: it.croppedBitmap }
-                            } else {
-                                listOf(bitmapToSave)
-                            }
-                            DocumentRepository.saveDocument(
-                                context = context,
-                                title = "مدرک اسکن‌شده ${DocumentRepository.getFormattedPersianDateTime()}",
-                                pageBitmaps = allPagesToSave,
-                                isPdf = false
-                            )
-
                             if (savedUri != null) {
                                 Toast.makeText(
                                     context,
-                                    "مدرک با موفقیت در گالری و مدارک اخیر ذخیره شد",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    "مدرک در فهرست مدارک اخیر ذخیره شد",
+                                    "صفحه جاری در گالری ذخیره شد",
                                     Toast.LENGTH_SHORT
                                 ).show()
                             }
@@ -618,16 +597,6 @@ fun PreviewFilterScreen(
                                 pageBitmaps = exportBitmaps,
                                 documentTitle = pdfTitle
                             )
-
-                            // ثبت سند PDF در دیتابیس مدارک محلی برنامه
-                            DocumentRepository.saveDocument(
-                                context = context,
-                                title = "$pdfTitle (PDF)",
-                                pageBitmaps = exportBitmaps,
-                                isPdf = true,
-                                pdfPath = savedUri?.toString()
-                            )
-
                             isExportingPdf = false
                             showPdfExportDialog = false
 
