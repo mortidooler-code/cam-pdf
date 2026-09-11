@@ -77,6 +77,22 @@ export default function App() {
                   <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-800/50 border border-slate-800">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                     <div>
+                      <strong className="text-white font-bold block mb-0.5">تشخیص خودکار لبه‌های سند با الگوریتم Sobel و کنتراست نوری:</strong>
+                      تابع پیشرفته <code className="text-amber-300 font-mono">detectDocumentBoundingBox</code> در اندروید و شبیه‌ساز با ماتریس گرادیان ۳×۳ سوبل و تحلیل پروفایل روشنایی، لبه‌های برگه کاغذ را شناسایی کرده و به‌صورت خودکار کادر اولیه ابزار برش را روی سند تنظیم می‌کند.
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-800/50 border border-slate-800">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="text-white font-bold block mb-0.5">برش دستی سند با Canvas بومی اندروید و Touch Gestures:</strong>
+                      رابط کاربری تعاملی با <code className="text-blue-300 font-mono">androidx.compose.foundation.Canvas</code> و <code className="text-blue-300 font-mono">detectDragGestures</code> با ۴ دستگیره گوشه، شبکه یک‌سوم (Rule of Thirds)، چرخش ۹۰ درجه و انتخاب کادر سند قبل از اعمال فیلترها.
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-800/50 border border-slate-800">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <div>
                       <strong className="text-white font-bold block mb-0.5">اتصال واقعی دوربین و گالری (Android ActivityResult):</strong>
                       دوربین با لانچر استاندارد <code className="text-blue-300 font-mono">TakePicturePreview</code> و گالری با لانچر استاندارد <code className="text-blue-300 font-mono">GetContent</code> به صفحه پیش‌نمایش متصل شدند.
                     </div>

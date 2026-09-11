@@ -6,14 +6,142 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 /**
- * مدیریت وضعیت جاری سند در حال پردازش بین صفحات
+ * مدل داده‌ای هر صفحه سند در پردازش دسته‌ای (Batch Processing)
+ */
+data class DocumentPage(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    var rawBitmap: Bitmap,
+    var croppedBitmap: Bitmap = rawBitmap,
+    var filterType: FilterType = FilterType.PHOTOCOPY,
+    var processedBitmap: Bitmap? = null
+)
+
+/**
+ * مدیریت وضعیت جاری سند در حال پردازش و پایش صفحات دسته‌ای (Batch)
  */
 object DocumentState {
+    // تصویر خام اصلی ثبت‌شده از دوربین یا گالری (پیش از برش)
+    var rawBitmap by mutableStateOf<Bitmap?>(null)
+
+    // تصویر برش‌خورده نهایی و آماده اعمال فیلترهای فتوکپی
     var activeBitmap by mutableStateOf<Bitmap?>(null)
+
+    // زاویه چرخش دستی تصویر بر حسب درجه
+    var currentRotationDegrees by mutableStateOf(0)
+
+    // لیست صفحات سند چندصفحه‌ای برای ادغام در فایل PDF واحد
+    val pages = mutableStateListOf<DocumentPage>()
+
+    // شاخص صفحه فعال در حال پیش‌نمایش یا ویرایش
+    var activePageIndex by mutableStateOf(0)
+
+    fun setImageSource(bitmap: Bitmap, resetBatch: Boolean = true) {
+        rawBitmap = bitmap
+        activeBitmap = bitmap
+        currentRotationDegrees = 0
+
+        if (resetBatch || pages.isEmpty()) {
+            pages.clear()
+            val initialPage = DocumentPage(
+                rawBitmap = bitmap,
+                croppedBitmap = bitmap,
+                filterType = FilterType.PHOTOCOPY
+            )
+            pages.add(initialPage)
+            activePageIndex = 0
+        }
+    }
+
+    /**
+     * افزودن صفحه جدید به بسته سند چندصفحه‌ای
+     */
+    fun addNewPage(bitmap: Bitmap) {
+        val newPage = DocumentPage(
+            rawBitmap = bitmap,
+            croppedBitmap = bitmap,
+            filterType = FilterType.PHOTOCOPY
+        )
+        pages.add(newPage)
+        activePageIndex = pages.size - 1
+        rawBitmap = bitmap
+        activeBitmap = bitmap
+        currentRotationDegrees = 0
+    }
+
+    /**
+     * به‌روزرسانی تصویر برش‌خورده صفحه فعال
+     */
+    fun updateActivePageCrop(cropped: Bitmap) {
+        activeBitmap = cropped
+        if (activePageIndex in pages.indices) {
+            val current = pages[activePageIndex]
+            pages[activePageIndex] = current.copy(
+                croppedBitmap = cropped,
+                processedBitmap = null
+            )
+        }
+    }
+
+    /**
+     * انتخاب صفحه مشخص به عنوان صفحه فعال
+     */
+    fun selectPage(index: Int) {
+        if (index in pages.indices) {
+            activePageIndex = index
+            val page = pages[index]
+            rawBitmap = page.rawBitmap
+            activeBitmap = page.croppedBitmap
+            currentRotationDegrees = 0
+        }
+    }
+
+    /**
+     * حذف صفحه از بسته دسته‌ای
+     */
+    fun removePage(index: Int) {
+        if (index in pages.indices && pages.size > 1) {
+            pages.removeAt(index)
+            if (activePageIndex >= pages.size) {
+                activePageIndex = pages.size - 1
+            }
+            val page = pages[activePageIndex]
+            rawBitmap = page.rawBitmap
+            activeBitmap = page.croppedBitmap
+        }
+    }
+
+    /**
+     * به‌روزرسانی فیلتر صفحه جاری
+     */
+    fun updateActivePageFilter(filter: FilterType, processed: Bitmap?) {
+        if (activePageIndex in pages.indices) {
+            val current = pages[activePageIndex]
+            pages[activePageIndex] = current.copy(
+                filterType = filter,
+                processedBitmap = processed
+            )
+        }
+    }
+
+    /**
+     * مقداردهی اولیه پیش‌فرض در صورت خالی بودن صفحات
+     */
+    fun ensureSampleBatchPages() {
+        if (pages.isEmpty()) {
+            val sample1 = createSampleDocumentBitmap("گواهی تأیید هویت و مدارک (صفحه ۱)")
+            val sample2 = createSampleDocumentBitmap("قرارداد رسمی و تعهدنامه اداری (صفحه ۲)")
+            pages.add(DocumentPage(rawBitmap = sample1, croppedBitmap = sample1, filterType = FilterType.PHOTOCOPY))
+            pages.add(DocumentPage(rawBitmap = sample2, croppedBitmap = sample2, filterType = FilterType.BLACK_AND_WHITE))
+            activePageIndex = 0
+            rawBitmap = sample1
+            activeBitmap = sample1
+        }
+    }
 
     /**
      * رمزگشایی تصویر انتخابی از گالری به فرمت Bitmap با ابزارهای داخلی اندروید

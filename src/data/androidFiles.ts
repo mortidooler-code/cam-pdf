@@ -16,13 +16,19 @@ export const ANDROID_FILES: AndroidFileInfo[] = [
     path: 'app/src/main/java/com/docscanner/smartcopy/util/DocumentFilterProcessor.kt',
     name: 'DocumentFilterProcessor.kt',
     type: 'kotlin',
-    description: 'موتور پردازش فیلترهای اسناد با ابزارهای داخلی SDK اندروید (ColorMatrix): فتوکپی پرکنتراست، سیاه‌سفید اداری، رنگی شفاف و توابع ذخیره در گالری و اشتراک‌گذاری'
+    description: 'موتور پردازش فیلترها (ColorMatrix) و الگوریتم آشکارسازی لبه سوبل (Sobel 3x3) با کنتراست روشنایی محلی جهت تشخیص خودکار کادر و لبه‌های کاغذ سند، برش Canvas و اشتراک‌گذاری'
   },
   {
     path: 'app/src/main/java/com/docscanner/smartcopy/model/DocumentState.kt',
     name: 'DocumentState.kt',
     type: 'kotlin',
     description: 'مدیریت استیت بیت‌مپ فعال سند، دیکود کردن تصویر گالری با ImageDecoder و تولید Canvas مدرک رسمی نمونه'
+  },
+  {
+    path: 'app/src/main/java/com/docscanner/smartcopy/ui/screens/CropScreen.kt',
+    name: 'CropScreen.kt',
+    type: 'kotlin',
+    description: 'رابط کاربری برش دستی سند با Canvas بومی و تشخیص حرکات لمسی، لبه‌یابی هوشمند خودکار با الگوریتم سوبل (Sobel)، ۴ دستگیره گوشه، شبکه یک‌سوم و چرخش ۹۰ درجه'
   },
   {
     path: 'app/src/main/java/com/docscanner/smartcopy/ui/screens/HomeScreen.kt',

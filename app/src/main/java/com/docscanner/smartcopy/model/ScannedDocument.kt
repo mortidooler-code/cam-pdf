@@ -8,7 +8,10 @@ data class ScannedDocument(
     val title: String,
     val date: String,
     val pageCount: Int = 1,
-    val fileSize: String = "1.2 مگابایت"
+    val fileSize: String = "1.2 مگابایت",
+    val thumbnailPath: String? = null,
+    val isPdf: Boolean = false,
+    val filePath: String? = null
 )
 
 /**

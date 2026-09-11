@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.docscanner.smartcopy.model.DocumentPage
 import com.docscanner.smartcopy.model.DocumentState
 import com.docscanner.smartcopy.model.ScannedDocument
 import com.docscanner.smartcopy.ui.theme.PrimaryBlue
@@ -38,7 +40,8 @@ import com.docscanner.smartcopy.ui.theme.SecondaryTeal
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    onNavigateToPreview: (docId: String) -> Unit
+    onNavigateToCrop: (docId: String) -> Unit,
+    onNavigateToPreview: (docId: String) -> Unit = onNavigateToCrop
 ) {
     val context = LocalContext.current
 
@@ -47,8 +50,8 @@ fun HomeScreen(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { capturedBitmap ->
         if (capturedBitmap != null) {
-            DocumentState.activeBitmap = capturedBitmap
-            onNavigateToPreview("camera_scan")
+            DocumentState.setImageSource(capturedBitmap)
+            onNavigateToCrop("camera_scan")
         }
     }
 
@@ -70,8 +73,8 @@ fun HomeScreen(
         if (selectedUri != null) {
             val bitmap = DocumentState.decodeUriToBitmap(context, selectedUri)
             if (bitmap != null) {
-                DocumentState.activeBitmap = bitmap
-                onNavigateToPreview("gallery_pick")
+                DocumentState.setImageSource(bitmap)
+                onNavigateToCrop("gallery_pick")
             } else {
                 Toast.makeText(context, "خطا در بازخوانی تصویر از گالری", Toast.LENGTH_SHORT).show()
             }
@@ -262,8 +265,14 @@ fun HomeScreen(
                 DocumentCard(
                     document = doc,
                     onClick = {
-                        // تولید خودکار نمونه سند با کیفیت بالا
-                        DocumentState.activeBitmap = DocumentState.createSampleDocumentBitmap(doc.title)
+                        val sampleBitmap = DocumentState.createSampleDocumentBitmap("${doc.title} (صفحه ۱)")
+                        DocumentState.setImageSource(sampleBitmap, resetBatch = true)
+                        if (doc.pageCount > 1) {
+                            for (i in 2..doc.pageCount) {
+                                val extra = DocumentState.createSampleDocumentBitmap("${doc.title} (صفحه $i)")
+                                DocumentState.pages.add(DocumentPage(rawBitmap = extra, croppedBitmap = extra))
+                            }
+                        }
                         onNavigateToPreview(doc.id)
                     }
                 )

@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Camera, ImagePlus, FileText, MoreVertical, Sparkles, ChevronLeft, ShieldCheck } from 'lucide-react';
 
 interface HomeScreenViewProps {
-  onNavigateToPreview: (docId: string, imageSrc?: string) => void;
+  onNavigateToPreview: (docId: string, pageCount?: number, title?: string) => void;
   onLaunchCamera: () => void;
   onLaunchGallery: (dataUrl?: string) => void;
 }
@@ -88,7 +88,7 @@ export const HomeScreenView: React.FC<HomeScreenViewProps> = ({
           {sampleDocs.map((doc) => (
             <div
               key={doc.id}
-              onClick={() => onNavigateToPreview(doc.id)}
+              onClick={() => onNavigateToPreview(doc.id, doc.pages, doc.title)}
               className="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-xs hover:shadow-md hover:border-blue-400 transition-all cursor-pointer flex items-center gap-3.5 group"
             >
               {/* Document Thumbnail */}
@@ -101,16 +101,21 @@ export const HomeScreenView: React.FC<HomeScreenViewProps> = ({
 
               {/* Document Info */}
               <div className="flex-1 min-w-0 text-right">
-                <h3 className="font-bold text-slate-900 text-sm truncate group-hover:text-blue-700 transition-colors">
-                  {doc.title}
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">{doc.date}</p>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-slate-900 text-sm truncate group-hover:text-blue-700 transition-colors">
+                    {doc.title}
+                  </h3>
+                  <span className="text-[9px] font-black bg-rose-50 text-rose-600 border border-rose-200/60 px-1.5 py-0.5 rounded">
+                    PDF
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">{doc.date}</p>
                 <div className="flex items-center gap-2 mt-1.5">
                   <span className="text-[11px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
                     {doc.size}
                   </span>
                   <span className="text-[11px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md font-medium">
-                    آماده چاپ و ارسال
+                    {doc.pages > 1 ? `${doc.pages} صفحه آماده ادغام` : 'آماده چاپ و ارسال'}
                   </span>
                 </div>
               </div>

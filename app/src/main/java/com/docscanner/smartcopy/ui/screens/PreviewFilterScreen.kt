@@ -1,12 +1,19 @@
 package com.docscanner.smartcopy.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -25,10 +32,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import com.docscanner.smartcopy.data.DocumentRepository
 import com.docscanner.smartcopy.model.DocumentState
 import com.docscanner.smartcopy.model.FilterType
 import com.docscanner.smartcopy.util.DocumentFilterProcessor
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,29 +46,86 @@ import kotlinx.coroutines.withContext
 fun PreviewFilterScreen(
     docId: String,
     onNavigateBack: () -> Unit,
+    onNavigateToCrop: () -> Unit = {},
     onSaveDocument: (filterType: FilterType) -> Unit = {},
     onShareDocument: (filterType: FilterType) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // بارگذاری تصویر منبع (عکس واقعی گرفته شده یا تصویر مدرک نمونه)
-    val baseBitmap = remember {
-        DocumentState.activeBitmap ?: DocumentState.createSampleDocumentBitmap("گواهی تأیید هویت رسمی")
+    // مقداردهی اولیه صفحات در صورت خالی بودن
+    LaunchedEffect(Unit) {
+        DocumentState.ensureSampleBatchPages()
     }
 
-    // وضعیت فیلتر انتخابی (پیش‌فرض: فتوکپی پرکنتراست هوشمند)
-    var selectedFilter by remember { mutableStateOf(FilterType.PHOTOCOPY) }
+    val pages = DocumentState.pages
+    val activeIndex = DocumentState.activePageIndex.coerceIn(0, (pages.size - 1).coerceAtLeast(0))
+
+    // صفحه فعال جاری
+    val currentPage = if (pages.isNotEmpty() && activeIndex in pages.indices) {
+        pages[activeIndex]
+    } else {
+        null
+    }
+
+    // تصویر مبنا برای پیش‌نمایش صفحه جاری
+    val baseBitmap = currentPage?.croppedBitmap
+        ?: DocumentState.activeBitmap
+        ?: remember { DocumentState.createSampleDocumentBitmap("گواهی تأیید هویت رسمی") }
+
+    // وضعیت فیلتر صفحه فعال
+    var selectedFilter by remember(activeIndex) {
+        mutableStateOf(currentPage?.filterType ?: FilterType.PHOTOCOPY)
+    }
+
     var isProcessing by remember { mutableStateOf(false) }
     var processedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var showPdfExportDialog by remember { mutableStateOf(false) }
+    var showAddPageMenu by remember { mutableStateOf(false) }
+    var isExportingPdf by remember { mutableStateOf(false) }
 
-    // اجرای بلادرنگ پردازش بومی فیلتر تصویر در کُرروتین به محض تغییر فیلتر
+    // لانچر دوربین جهت عکسبرداری صفحات بعدی سند
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { capturedBitmap ->
+        if (capturedBitmap != null) {
+            DocumentState.addNewPage(capturedBitmap)
+            onNavigateToCrop()
+        }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            cameraLauncher.launch(null)
+        } else {
+            Toast.makeText(context, "جهت ثبت عکس با دوربین به این دسترسی نیاز است", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // لانچر گالری جهت افزودن تصاویر دیگر به بسته سند
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            val bitmap = DocumentState.decodeUriToBitmap(context, uri)
+            if (bitmap != null) {
+                DocumentState.addNewPage(bitmap)
+                onNavigateToCrop()
+            }
+        }
+    }
+
+    // اعمال زنده فیلتر انتخابی روی تصویر صفحه جاری
     LaunchedEffect(selectedFilter, baseBitmap) {
         isProcessing = true
         val result = withContext(Dispatchers.Default) {
             DocumentFilterProcessor.applyFilter(baseBitmap, selectedFilter)
         }
         processedBitmap = result
+        DocumentState.updateActivePageFilter(selectedFilter, result)
         isProcessing = false
     }
 
@@ -67,11 +134,21 @@ fun PreviewFilterScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = "پیش‌نمایش و فیلتر",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Column {
+                        Text(
+                            text = "پیش‌نمایش سند",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (pages.size > 1) {
+                            Text(
+                                text = "صفحه ${activeIndex + 1} از ${pages.size} • اسکن چندصفحه‌ای",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -83,7 +160,31 @@ fun PreviewFilterScreen(
                     }
                 },
                 actions = {
-                    // دکمه اشتراک‌گذاری واقعی با Intent.ACTION_SEND
+                    // دکمه خروجی PDF با Android native PdfDocument API
+                    IconButton(onClick = { showPdfExportDialog = true }) {
+                        Badge(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.offset(x = 10.dp, y = (-10).dp)
+                        ) {
+                            Text("PDF", fontSize = 9.sp, fontWeight = FontWeight.Black)
+                        }
+                        Icon(
+                            imageVector = Icons.Default.PictureAsPdf,
+                            contentDescription = "خروجی PDF چندصفحه‌ای",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    // دکمه تنظیم مجدد کادر و برش صفحه جاری
+                    IconButton(onClick = onNavigateToCrop) {
+                        Icon(
+                            imageVector = Icons.Default.Crop,
+                            contentDescription = "تنظیم کادر برش",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // دکمه اشتراک‌گذاری تصویر یا سند
                     IconButton(onClick = {
                         val bitmapToShare = processedBitmap ?: baseBitmap
                         DocumentFilterProcessor.shareBitmap(context, bitmapToShare, "مدرک اسکن‌شده")
@@ -91,37 +192,51 @@ fun PreviewFilterScreen(
                     }) {
                         Icon(
                             imageVector = Icons.Default.Share,
-                            contentDescription = "اشتراک‌گذاری",
-                            tint = MaterialTheme.colorScheme.primary
+                            contentDescription = "اشتراک‌گذاری تصویر",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
-                    // دکمه ذخیره واقعی در گالری و حافظه محلی
+                    // دکمه ذخیره تصویر جاری و ثبت در لیست مدارک اخیر
                     FilledTonalButton(
                         onClick = {
                             val bitmapToSave = processedBitmap ?: baseBitmap
                             val savedUri = DocumentFilterProcessor.saveBitmapToGallery(
                                 context = context,
                                 bitmap = bitmapToSave,
-                                title = "SmartDoc"
+                                title = "SmartDoc_Page${activeIndex + 1}"
                             )
+
+                            // ثبت واقعی مدرک در مخزن اسناد محلی (دیتابیس اسناد اخیر)
+                            val allPagesToSave = if (pages.size > 1) {
+                                pages.map { it.processedBitmap ?: it.croppedBitmap }
+                            } else {
+                                listOf(bitmapToSave)
+                            }
+                            DocumentRepository.saveDocument(
+                                context = context,
+                                title = "مدرک اسکن‌شده ${DocumentRepository.getFormattedPersianDateTime()}",
+                                pageBitmaps = allPagesToSave,
+                                isPdf = false
+                            )
+
                             if (savedUri != null) {
                                 Toast.makeText(
                                     context,
-                                    "سند با فیلتر «${selectedFilter.title}» در گالری ذخیره شد",
+                                    "مدرک با موفقیت در گالری و مدارک اخیر ذخیره شد",
                                     Toast.LENGTH_SHORT
                                 ).show()
                             } else {
                                 Toast.makeText(
                                     context,
-                                    "سند با موفقیت ذخیره شد",
+                                    "مدرک در فهرست مدارک اخیر ذخیره شد",
                                     Toast.LENGTH_SHORT
                                 ).show()
                             }
                             onSaveDocument(selectedFilter)
                         },
                         shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                         colors = ButtonDefaults.filledTonalButtonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary
@@ -130,13 +245,13 @@ fun PreviewFilterScreen(
                         Icon(
                             imageVector = Icons.Default.Check,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "ذخیره",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                            fontSize = 13.sp
                         )
                     }
                 },
@@ -146,7 +261,7 @@ fun PreviewFilterScreen(
             )
         },
         bottomBar = {
-            // نوار ابزار پایین صفحه جهت انتخاب زنده فیلترها (۴ فیلتر اصلی)
+            // پنل پایین شامل نوار انتخاب فیلترها
             Surface(
                 tonalElevation = 8.dp,
                 shadowElevation = 12.dp,
@@ -156,20 +271,8 @@ fun PreviewFilterScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
                 ) {
-                    // توضیح کوتاه فیلتر فعال
-                    Text(
-                        text = selectedFilter.description,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 10.dp)
-                    )
-
                     // دکمه‌های ۴ فیلتر استاندارد
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -208,18 +311,452 @@ fun PreviewFilterScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        // نمایش تصویر پردازش‌شده مدرک در کادر زیبا
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp),
+        ) {
+            // نوار مدیریت صفحات اسناد دسته‌ای (Batch Pages Carousel)
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Layers,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "صفحات سند دسته‌ای (${pages.size} صفحه)",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        // دکمه سریع ساخت PDF
+                        TextButton(
+                            onClick = { showPdfExportDialog = true },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PictureAsPdf,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "ادغام به PDF",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // ردیف افقی صفحات و دکمه افزودن صفحه جدید
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        itemsIndexed(pages) { index, page ->
+                            val isSelected = index == activeIndex
+                            val thumbBitmap = page.processedBitmap ?: page.croppedBitmap
+
+                            Box(
+                                modifier = Modifier
+                                    .width(64.dp)
+                                    .height(84.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.White)
+                                    .border(
+                                        width = if (isSelected) 2.5.dp else 1.dp,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFFCBD5E1),
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable {
+                                        DocumentState.selectPage(index)
+                                    }
+                            ) {
+                                Image(
+                                    bitmap = thumbBitmap.asImageBitmap(),
+                                    contentDescription = "صفحه ${index + 1}",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+
+                                // برچسب شماره صفحه
+                                Surface(
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Black.copy(alpha = 0.65f),
+                                    shape = RoundedCornerShape(topEnd = 6.dp),
+                                    modifier = Modifier.align(Alignment.BottomStart)
+                                ) {
+                                    Text(
+                                        text = "${index + 1}",
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+
+                                // دکمه حذف صفحه (در صورتی که بیش از یک صفحه وجود داشته باشد)
+                                if (pages.size > 1) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .size(20.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.Black.copy(alpha = 0.55f))
+                                            .clickable {
+                                                DocumentState.removePage(index)
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "حذف صفحه",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // کارت افزودن صفحه جدید به بسته
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .width(64.dp)
+                                    .height(84.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
+                                    .border(
+                                        width = 1.dp,
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable { showAddPageMenu = true },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "افزودن صفحه",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "+ صفحه",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // کادر پیش‌نمایش تصویر صفحه فعال
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                val currentDisplayBitmap = processedBitmap ?: baseBitmap
+                DocumentPreviewCard(
+                    bitmap = currentDisplayBitmap,
+                    isProcessing = isProcessing
+                )
+            }
+        }
+    }
+
+    // پنجره پاپ‌آپ انتخاب منبع برای افزودن صفحه جدید (دوربین یا گالری)
+    if (showAddPageMenu) {
+        AlertDialog(
+            onDismissRequest = { showAddPageMenu = false },
+            title = {
+                Text(
+                    text = "افزودن صفحه جدید به سند",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "می‌توانید صفحه بعدی این سند را با دوربین ثبت کرده یا از گالری انتخاب کنید.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showAddPageMenu = false
+                        val hasCam = ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.CAMERA
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (hasCam) {
+                            cameraLauncher.launch(null)
+                        } else {
+                            permissionLauncher.launch(Manifest.permission.CAMERA)
+                        }
+                    }
+                ) {
+                    Icon(imageVector = Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("دوربین")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = {
+                        showAddPageMenu = false
+                        galleryLauncher.launch("image/*")
+                    }
+                ) {
+                    Icon(imageVector = Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("گالری")
+                }
+            }
+        )
+    }
+
+    // دیالوگ خروجی و ادغام PDF با Android native PdfDocument API
+    if (showPdfExportDialog) {
+        var pdfTitle by remember { mutableStateOf("SmartDoc_${pages.size}Pages") }
+
+        AlertDialog(
+            onDismissRequest = { if (!isExportingPdf) showPdfExportDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.PictureAsPdf,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "صدور سند چندصفحه‌ای PDF",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "تعداد ${pages.size} صفحه پردازش‌شده در یک فایل استاندارد A4 با استفاده از Android native PdfDocument API ادغام خواهند شد.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 20.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = pdfTitle,
+                        onValueChange = { pdfTitle = it },
+                        label = { Text("نام فایل PDF") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (isExportingPdf) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("در حال تولید و ذخیره فایل PDF...", fontSize = 12.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !isExportingPdf,
+                    onClick = {
+                        isExportingPdf = true
+                        scope.launch {
+                            val exportBitmaps = withContext(Dispatchers.Default) {
+                                pages.map { page ->
+                                    page.processedBitmap
+                                        ?: DocumentFilterProcessor.applyFilter(page.croppedBitmap, page.filterType)
+                                }
+                            }
+                            val savedUri = DocumentFilterProcessor.savePdfToStorage(
+                                context = context,
+                                pageBitmaps = exportBitmaps,
+                                documentTitle = pdfTitle
+                            )
+
+                            // ثبت سند PDF در دیتابیس مدارک محلی برنامه
+                            DocumentRepository.saveDocument(
+                                context = context,
+                                title = "$pdfTitle (PDF)",
+                                pageBitmaps = exportBitmaps,
+                                isPdf = true,
+                                pdfPath = savedUri?.toString()
+                            )
+
+                            isExportingPdf = false
+                            showPdfExportDialog = false
+
+                            if (savedUri != null) {
+                                Toast.makeText(
+                                    context,
+                                    "فایل PDF با موفقیت در پوشه Downloads ذخیره شد",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "فایل PDF با موفقیت تولید شد",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    }
+                ) {
+                    Icon(imageVector = Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("ذخیره در دستگاه")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    enabled = !isExportingPdf,
+                    onClick = {
+                        isExportingPdf = true
+                        scope.launch {
+                            val exportBitmaps = withContext(Dispatchers.Default) {
+                                pages.map { page ->
+                                    page.processedBitmap
+                                        ?: DocumentFilterProcessor.applyFilter(page.croppedBitmap, page.filterType)
+                                }
+                            }
+                            DocumentFilterProcessor.sharePdfDocument(
+                                context = context,
+                                pageBitmaps = exportBitmaps,
+                                documentTitle = pdfTitle
+                            )
+                            isExportingPdf = false
+                            showPdfExportDialog = false
+                        }
+                    }
+                ) {
+                    Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("اشتراک‌گذاری")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun DocumentPreviewCard(
+    bitmap: Bitmap,
+    isProcessing: Boolean
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.98f)
+            .shadow(12.dp, RoundedCornerShape(12.dp)),
+        shape = RoundedCornerShape(12.dp),
+        color = Color.White,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            val currentDisplayBitmap = processedBitmap ?: baseBitmap
-            DocumentPreviewCard(
-                bitmap = currentDisplayBitmap,
-                isProcessing = isProcessing
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "سند پردازش‌شده",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                contentScale = ContentScale.Fit
+            )
+
+            if (isProcessing) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FilterButton(
+    title: String,
+    icon: ImageVector,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.height(48.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = title,
+                fontSize = 12.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
             )
         }
     }
