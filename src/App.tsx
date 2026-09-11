@@ -1,0 +1,131 @@
+import React, { useState } from 'react';
+import { AndroidEmulator } from './components/AndroidEmulator';
+import { ProjectExplorer } from './components/ProjectExplorer';
+import { Smartphone, FolderGit2, Sparkles, CheckCircle2 } from 'lucide-react';
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState<'emulator' | 'code'>('emulator');
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-['Vazirmatn',sans-serif]">
+      {/* Top Banner & Header */}
+      <header className="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md px-4 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-50">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-600/30">
+            <Smartphone className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-base lg:text-lg font-bold text-white tracking-tight">
+                اسکنر و فتوکپی هوشمند مدارک
+              </h1>
+              <span className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 text-[11px] font-bold px-2 py-0.5 rounded-md">
+                Native Android
+              </span>
+            </div>
+            <p className="text-xs text-slate-400">
+              طراحی‌شده با کاتلین، Jetpack Compose و خط لوله بیلد خودکار GitHub Actions (فاز اول)
+            </p>
+          </div>
+        </div>
+
+        {/* View Switcher Tabs */}
+        <div className="flex items-center bg-slate-800/80 p-1 rounded-2xl border border-slate-700/60">
+          <button
+            onClick={() => setActiveTab('emulator')}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'emulator'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Smartphone className="w-4 h-4" />
+            <span>شبیه‌ساز زنده اندروید</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('code')}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'code'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <FolderGit2 className="w-4 h-4" />
+            <span>سورس‌کد و GitHub Actions</span>
+          </button>
+        </div>
+      </header>
+
+      {/* Main Responsive Body */}
+      <div className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6 flex flex-col justify-center">
+        {activeTab === 'emulator' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+            {/* Left/Center Column: Android Phone Simulator */}
+            <div className="lg:col-span-6 flex justify-center">
+              <AndroidEmulator />
+            </div>
+
+            {/* Right Column: Key Feature Badges & Architectural Summary */}
+            <div className="lg:col-span-6 space-y-4">
+              <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+                <div className="flex items-center gap-2.5 text-blue-400 font-bold text-sm">
+                  <Sparkles className="w-4 h-4" />
+                  <span>ویژگی‌های طراحی‌شده در فاز اول UI/UX:</span>
+                </div>
+
+                <div className="space-y-3 text-xs leading-relaxed text-slate-300">
+                  <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-800/50 border border-slate-800">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="text-white font-bold block mb-0.5">صفحه اصلی (Home):</strong>
+                      اپبار تمیز فارسی «اسکنر مدارک»، لیست اسناد اخیر با کارت‌های مشخصات (عکس، تعداد صفحات و تاریخ)، همراه دو دکمه شناور بزرگ پایین صفحه برای دوربین و گالری.
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-800/50 border border-slate-800">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="text-white font-bold block mb-0.5">صفحه پیش‌نمایش و فیلترها (Preview & Filter):</strong>
+                      کادر مرتب نمایش برگه سند با تغییر زنده بین ۴ حالت:
+                      فتوکپی (کاغذ سفید و جوهر مشکی پررنگ)، سیاه‌سفید اداری، رنگی شفاف و تصویر اصلی همراه دکمه‌های بالا (بازگشت، ذخیره، اشتراک‌گذاری).
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-800/50 border border-slate-800">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="text-white font-bold block mb-0.5">خط لوله GitHub Actions (تولید APK):</strong>
+                      فایل <code className="text-blue-300 font-mono">.github/workflows/build-apk.yml</code> با جاوا ۱۷، اعطای مجوز اجرایی به gradlew، اجرای دستور <code className="text-amber-300 font-mono">assembleDebug --no-daemon</code> و آپلود فایل APK با نام <span className="text-emerald-400 font-semibold">scanner-debug-apk</span> آماده است.
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-800/50 border border-slate-800">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="text-white font-bold block mb-0.5">تنظیمات مانیفست و گریدل:</strong>
+                      پشتیبانی کامل راست‌چین (<code className="text-blue-300 font-mono">supportsRtl="true"</code>)، مجوز دوربین (<code className="text-blue-300 font-mono">CAMERA</code>) و معماری مدرن Material 3.
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    onClick={() => setActiveTab('code')}
+                    className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-600/30"
+                  >
+                    <FolderGit2 className="w-4 h-4" />
+                    <span>مشاهده و بررسی فایل‌های کاتلین و Gradle</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="max-w-4xl mx-auto w-full">
+            <ProjectExplorer />
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}

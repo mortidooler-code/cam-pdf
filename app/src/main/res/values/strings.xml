@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">اسکنر و فتوکپی هوشمند مدارک</string>
+    <string name="home_title">اسکنر مدارک</string>
+    <string name="recent_documents">مدارک اخیر</string>
+    <string name="no_documents">هنوز مدرکی اسکن نکرده‌اید</string>
+    <string name="scan_with_camera">دوربین (ثبت مدرک)</string>
+    <string name="pick_from_gallery">گالری (انتخاب عکس)</string>
+    <string name="sample_doc_1_title">شناسنامه و کارت ملی</string>
+    <string name="sample_doc_1_date">۱۴۰۳/۰۶/۲۰ - ۱۰:۴۵</string>
+    <string name="sample_doc_2_title">قرارداد رسمی و اجاره‌نامه</string>
+    <string name="sample_doc_2_date">۱۴۰۳/۰۶/۱۹ - ۱۸:۱۵</string>
+    
+    <!-- Preview & Filters Screen -->
+    <string name="preview_title">پیش‌نمایش و تنظیم فیلتر</string>
+    <string name="filter_photocopy">فتوکپی</string>
+    <string name="filter_photocopy_desc">سفید کردن کاغذ و مشکی پررنگ کردن نوشته‌ها</string>
+    <string name="filter_bw">سیاه و سفید</string>
+    <string name="filter_bw_desc">کنتراست استاندارد اداری</string>
+    <string name="filter_clear">رنگی شفاف</string>
+    <string name="filter_clear_desc">بهبود شفافیت و وضوح رنگ</string>
+    <string name="filter_original">تصویر اصلی</string>
+    <string name="filter_original_desc">بدون افکت</string>
+    
+    <!-- Actions -->
+    <string name="action_back">بازگشت</string>
+    <string name="action_share">اشتراک‌گذاری</string>
+    <string name="action_save">ذخیره</string>
+    <string name="action_saved_success">مدرک با موفقیت ذخیره شد</string>
+    <string name="action_shared_info">آماده‌سازی برای ارسال...</string>
+</resources>

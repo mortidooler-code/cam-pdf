@@ -1,0 +1,10 @@
+{
+  "name": "اسکنر و فتوکپی هوشمند مدارک",
+  "description": "اپلیکیشن نیتیو اندروید کاتلین و Jetpack Compose جهت اسکن و تبدیل مدارک به فتوکپی با کنتراست بالا",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
