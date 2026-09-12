@@ -70,6 +70,9 @@ fun AppNavHost(
                 },
                 onNavigateToCrop = {
                     navController.navigate(Screen.Crop.createRoute(docId))
+                },
+                onSaveDocument = {
+                    navController.popBackStack(Screen.Home.route, inclusive = false)
                 }
             )
         }

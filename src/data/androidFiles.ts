@@ -13,6 +13,12 @@ export const ANDROID_FILES: AndroidFileInfo[] = [
     description: 'خط لوله خودکار گیت‌هاب اکشنز (Java 17 + بررسی و بازیابی خودکار Wrapper + assembleDebug + Upload Artifact APK)'
   },
   {
+    path: 'app/src/main/java/com/docscanner/smartcopy/util/RecentDocumentsRepository.kt',
+    name: 'RecentDocumentsRepository.kt',
+    type: 'kotlin',
+    description: 'مدیریت و ذخیره‌سازی دائمی مدارک اسکن‌شده واقعی کاربر در حافظه داخلی دستگاه با متادیتای JSON و تصاویر JPEG واقعی'
+  },
+  {
     path: 'app/src/main/java/com/docscanner/smartcopy/util/DocumentFilterProcessor.kt',
     name: 'DocumentFilterProcessor.kt',
     type: 'kotlin',
