@@ -32,6 +32,7 @@ export interface WebBatchPage {
 
 interface PreviewFilterViewProps {
   docId: string;
+  documentTitle?: string;
   imageSrc?: string | null;
   pages?: WebBatchPage[];
   activePageIndex?: number;
@@ -39,6 +40,7 @@ interface PreviewFilterViewProps {
   onRemovePage?: (index: number) => void;
   onAddPage?: (source: 'camera' | 'gallery') => void;
   onUpdatePageFilter?: (index: number, filter: FilterId, processedUrl: string) => void;
+  onSaveDocumentToRecent?: (title?: string) => void;
   onNavigateBack: () => void;
   onNavigateToCrop?: () => void;
   onShowToast: (message: string) => void;
@@ -53,6 +55,7 @@ interface FilterItem {
 
 export const PreviewFilterView: React.FC<PreviewFilterViewProps> = ({
   docId: _docId,
+  documentTitle,
   imageSrc,
   pages = [],
   activePageIndex = 0,
@@ -60,6 +63,7 @@ export const PreviewFilterView: React.FC<PreviewFilterViewProps> = ({
   onRemovePage,
   onAddPage,
   onUpdatePageFilter,
+  onSaveDocumentToRecent,
   onNavigateBack,
   onNavigateToCrop,
   onShowToast
@@ -195,7 +199,10 @@ export const PreviewFilterView: React.FC<PreviewFilterViewProps> = ({
       a.download = `SmartDoc_Page${activePageIndex + 1}_${activeFilter}.jpg`;
       a.click();
     }
-    onShowToast(`صفحه ${activePageIndex + 1} با فیلتر «${current?.name}» ذخیره شد.`);
+    if (onSaveDocumentToRecent) {
+      onSaveDocumentToRecent(documentTitle);
+    }
+    onShowToast(`صفحه ${activePageIndex + 1} با فیلتر «${current?.name}» در گالری و مدارک اخیر ذخیره شد.`);
   };
 
   const handleShare = () => {

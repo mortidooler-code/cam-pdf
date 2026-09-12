@@ -3,6 +3,13 @@ import { Wifi, BatteryMedium, Signal } from 'lucide-react';
 import { HomeScreenView } from './HomeScreenView';
 import { PreviewFilterView, WebBatchPage, FilterId } from './PreviewFilterView';
 import { CropScreenView } from './CropScreenView';
+import {
+  ScannedDocumentItem,
+  loadRecentDocuments,
+  addOrUpdateScannedDocument,
+  deleteScannedDocument,
+  getPersianDateString
+} from '../utils/recentDocsStorage';
 
 // تابع تولید تصویر سند اداری با جزئیات فارسی برای صفحات نمونه و عکاسی دوربین
 function generateDocumentCanvas(title: string, pageNum: number, totalPages: number): string {
@@ -104,13 +111,20 @@ function generateDocumentCanvas(title: string, pageNum: number, totalPages: numb
 
 export const AndroidEmulator: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<'home' | 'crop' | 'preview'>('home');
-  const [selectedDocId, setSelectedDocId] = useState<string>('doc_1');
+  const [selectedDocId, setSelectedDocId] = useState<string>('doc_real_1');
+  const [currentDocTitle, setCurrentDocTitle] = useState<string>('شناسنامه و کارت ملی');
   const [rawImage, setRawImage] = useState<string | null>(null);
   const [activeImage, setActiveImage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // اسناد اسکن‌شده واقعی ذخیره‌شده کاربر
+  const [recentDocs, setRecentDocs] = useState<ScannedDocumentItem[]>(() => loadRecentDocuments());
+
   // مدیریت صفحات دسته‌ای سند جاری
-  const [batchPages, setBatchPages] = useState<WebBatchPage[]>([]);
+  const [batchPages, setBatchPages] = useState<WebBatchPage[]>(() => {
+    const initial = loadRecentDocuments();
+    return initial[0]?.pages || [];
+  });
   const [activePageIndex, setActivePageIndex] = useState<number>(0);
 
   const showToast = (message: string) => {
@@ -120,28 +134,45 @@ export const AndroidEmulator: React.FC = () => {
     }, 3200);
   };
 
-  // بارگذاری سند از صفحه اصلی با پشتیبانی چندصفحه‌ای
-  const handleOpenDocument = (docId: string, pageCount: number = 1, title: string = 'سند') => {
-    setSelectedDocId(docId);
-    const generatedPages: WebBatchPage[] = [];
+  // ذخیره سند واقعی جاری در لیست اسناد اخیر
+  const handleSaveDocumentToRecent = (titleOverride?: string, pagesOverride?: WebBatchPage[]) => {
+    const pagesToSave = pagesOverride || batchPages;
+    if (!pagesToSave || pagesToSave.length === 0) return;
 
-    for (let i = 1; i <= pageCount; i++) {
-      const pageDataUrl = generateDocumentCanvas(title, i, pageCount);
-      generatedPages.push({
-        id: `page_${docId}_${i}`,
-        rawImage: pageDataUrl,
-        croppedImage: pageDataUrl,
-        filterType: 'photocopy',
-        title: `صفحه ${i}`
-      });
-    }
+    const title = titleOverride || currentDocTitle || `مدرک اسکن‌شده ${getPersianDateString()}`;
+    const updated = addOrUpdateScannedDocument({
+      id: selectedDocId.startsWith('doc_') ? selectedDocId : `doc_user_${Date.now()}`,
+      title,
+      pages: pagesToSave,
+      pageCount: pagesToSave.length,
+      fileSize: '',
+      thumbnail: pagesToSave[0]?.processedImage || pagesToSave[0]?.croppedImage || '',
+      date: getPersianDateString()
+    });
+    setRecentDocs(updated);
+  };
 
-    setBatchPages(generatedPages);
+  // بارگذاری مدرک واقعی ذخیره‌شده از لیست مدارک اخیر
+  const handleSelectSavedDocument = (doc: ScannedDocumentItem) => {
+    setSelectedDocId(doc.id);
+    setCurrentDocTitle(doc.title);
+    setBatchPages(doc.pages);
     setActivePageIndex(0);
-    setActiveImage(generatedPages[0].croppedImage);
-    setRawImage(generatedPages[0].rawImage);
+
+    const first = doc.pages[0];
+    if (first) {
+      setActiveImage(first.processedImage || first.croppedImage);
+      setRawImage(first.rawImage || first.croppedImage);
+    }
     setCurrentScreen('preview');
-    showToast(`سند «${title}» با ${pageCount} صفحه بارگذاری گردید.`);
+    showToast(`سند «${doc.title}» با ${doc.pageCount} صفحه بارگذاری شد.`);
+  };
+
+  // حذف مدرک اسکن‌شده از لیست
+  const handleDeleteSavedDocument = (id: string) => {
+    const updated = deleteScannedDocument(id);
+    setRecentDocs(updated);
+    showToast('مدرک با موفقیت از لیست مدارک اخیر حذف شد.');
   };
 
   // ورود به صفحه برش
@@ -157,37 +188,35 @@ export const AndroidEmulator: React.FC = () => {
   const handleCropConfirmed = (croppedImageUrl: string) => {
     setActiveImage(croppedImageUrl);
 
-    setBatchPages((prev) => {
-      if (prev.length === 0) {
-        return [
-          {
-            id: `page_${Date.now()}`,
-            rawImage: rawImage || croppedImageUrl,
-            croppedImage: croppedImageUrl,
-            filterType: 'photocopy',
-            title: 'صفحه ۱'
-          }
-        ];
-      }
-
-      const updated = [...prev];
-      if (updated[activePageIndex]) {
-        updated[activePageIndex] = {
-          ...updated[activePageIndex],
+    const updatedPages = [...batchPages];
+    if (updatedPages.length === 0) {
+      const newPage: WebBatchPage = {
+        id: `page_${Date.now()}`,
+        rawImage: rawImage || croppedImageUrl,
+        croppedImage: croppedImageUrl,
+        filterType: 'photocopy',
+        title: 'صفحه ۱'
+      };
+      setBatchPages([newPage]);
+      handleSaveDocumentToRecent(currentDocTitle, [newPage]);
+    } else {
+      if (updatedPages[activePageIndex]) {
+        updatedPages[activePageIndex] = {
+          ...updatedPages[activePageIndex],
           croppedImage: croppedImageUrl,
           processedImage: undefined
         };
       }
-      return updated;
-    });
+      setBatchPages(updatedPages);
+      handleSaveDocumentToRecent(currentDocTitle, updatedPages);
+    }
 
     setCurrentScreen('preview');
-    showToast(`کادر صفحه ${activePageIndex + 1} تنظیم شد.`);
+    showToast(`کادر صفحه ${activePageIndex + 1} با موفقیت تنظیم شد.`);
   };
 
   // عکسبرداری با دوربین (اسکن مستقیم یا افزودن صفحه جدید به بسته)
   const handleLaunchCamera = (isAppending: boolean = false) => {
-    setSelectedDocId('camera_scan');
     const pageNum = isAppending ? batchPages.length + 1 : 1;
     const totalPages = isAppending ? batchPages.length + 1 : 1;
     const capturedDataUrl = generateDocumentCanvas('سند اسکن‌شده با دوربین', pageNum, totalPages);
@@ -201,11 +230,18 @@ export const AndroidEmulator: React.FC = () => {
     };
 
     if (isAppending) {
-      setBatchPages((prev) => [...prev, newPage]);
+      const updated = [...batchPages, newPage];
+      setBatchPages(updated);
       setActivePageIndex(batchPages.length);
+      handleSaveDocumentToRecent(currentDocTitle, updated);
     } else {
+      const newId = `doc_user_${Date.now()}`;
+      const newTitle = `اسکن دوربین (${getPersianDateString()})`;
+      setSelectedDocId(newId);
+      setCurrentDocTitle(newTitle);
       setBatchPages([newPage]);
       setActivePageIndex(0);
+      handleSaveDocumentToRecent(newTitle, [newPage]);
     }
 
     setRawImage(capturedDataUrl);
@@ -216,7 +252,6 @@ export const AndroidEmulator: React.FC = () => {
 
   // انتخاب تصویر از گالری (یا افزودن صفحه به بسته جاری)
   const handleLaunchGallery = (dataUrl?: string, isAppending: boolean = false) => {
-    setSelectedDocId('gallery_pick');
     const pageNum = isAppending ? batchPages.length + 1 : 1;
     const totalPages = isAppending ? batchPages.length + 1 : 1;
     const imgUrl = dataUrl || generateDocumentCanvas('تصویر انتخابی از گالری', pageNum, totalPages);
@@ -230,11 +265,18 @@ export const AndroidEmulator: React.FC = () => {
     };
 
     if (isAppending) {
-      setBatchPages((prev) => [...prev, newPage]);
+      const updated = [...batchPages, newPage];
+      setBatchPages(updated);
       setActivePageIndex(batchPages.length);
+      handleSaveDocumentToRecent(currentDocTitle, updated);
     } else {
+      const newId = `doc_user_${Date.now()}`;
+      const newTitle = `تصویر گالری (${getPersianDateString()})`;
+      setSelectedDocId(newId);
+      setCurrentDocTitle(newTitle);
       setBatchPages([newPage]);
       setActivePageIndex(0);
+      handleSaveDocumentToRecent(newTitle, [newPage]);
     }
 
     setRawImage(imgUrl);
@@ -261,6 +303,7 @@ export const AndroidEmulator: React.FC = () => {
     setActivePageIndex(newActive);
     setActiveImage(updated[newActive]?.croppedImage || null);
     setRawImage(updated[newActive]?.rawImage || null);
+    handleSaveDocumentToRecent(currentDocTitle, updated);
     showToast(`صفحه ${index + 1} از بسته حذف شد.`);
   };
 
@@ -275,6 +318,7 @@ export const AndroidEmulator: React.FC = () => {
           processedImage: processedUrl
         };
       }
+      handleSaveDocumentToRecent(currentDocTitle, updated);
       return updated;
     });
   };
@@ -307,7 +351,9 @@ export const AndroidEmulator: React.FC = () => {
           <div className="flex-1 overflow-hidden relative">
             {currentScreen === 'home' && (
               <HomeScreenView
-                onNavigateToPreview={(id, pages, title) => handleOpenDocument(id, pages, title)}
+                documents={recentDocs}
+                onSelectDocument={handleSelectSavedDocument}
+                onDeleteDocument={handleDeleteSavedDocument}
                 onLaunchCamera={() => handleLaunchCamera(false)}
                 onLaunchGallery={(url) => handleLaunchGallery(url, false)}
               />
@@ -334,6 +380,7 @@ export const AndroidEmulator: React.FC = () => {
             {currentScreen === 'preview' && (
               <PreviewFilterView
                 docId={selectedDocId}
+                documentTitle={currentDocTitle}
                 imageSrc={activeImage || rawImage}
                 pages={batchPages}
                 activePageIndex={activePageIndex}
@@ -347,7 +394,11 @@ export const AndroidEmulator: React.FC = () => {
                   }
                 }}
                 onUpdatePageFilter={handleUpdatePageFilter}
-                onNavigateBack={() => setCurrentScreen('home')}
+                onSaveDocumentToRecent={(title) => handleSaveDocumentToRecent(title)}
+                onNavigateBack={() => {
+                  handleSaveDocumentToRecent();
+                  setCurrentScreen('home');
+                }}
                 onNavigateToCrop={handleNavigateToCrop}
                 onShowToast={showToast}
               />

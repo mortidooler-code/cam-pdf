@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,18 +17,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -36,6 +40,7 @@ import com.docscanner.smartcopy.model.DocumentState
 import com.docscanner.smartcopy.model.ScannedDocument
 import com.docscanner.smartcopy.ui.theme.PrimaryBlue
 import com.docscanner.smartcopy.ui.theme.SecondaryTeal
+import com.docscanner.smartcopy.util.RecentDocumentsRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,24 +86,14 @@ fun HomeScreen(
         }
     }
 
-    // دو آیتم نمونه اسناد اخیر در فاز اول
-    val sampleDocuments = remember {
-        listOf(
-            ScannedDocument(
-                id = "doc_1",
-                title = "شناسنامه و کارت ملی",
-                date = "۱۴۰۳/۰۶/۲۰ - ۱۰:۴۵",
-                pageCount = 2,
-                fileSize = "۱.۴ مگابایت"
-            ),
-            ScannedDocument(
-                id = "doc_2",
-                title = "قرارداد رسمی و اجاره‌نامه",
-                date = "۱۴۰۳/۰۶/۱۹ - ۱۸:۱۵",
-                pageCount = 4,
-                fileSize = "۲.۸ مگابایت"
-            )
-        )
+    // فهرست مدارک اخیر کاربر بارگذاری‌شده از حافظه دستگاه
+    var recentDocuments by remember {
+        mutableStateOf(RecentDocumentsRepository.getRecentDocuments(context))
+    }
+
+    // به‌روزرسانی مجدد مدارک هر بار که وارد صفحه می‌شویم
+    LaunchedEffect(Unit) {
+        recentDocuments = RecentDocumentsRepository.getRecentDocuments(context)
     }
 
     Scaffold(
@@ -254,28 +249,72 @@ fun HomeScreen(
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
-                        text = "${sampleDocuments.size} سند ذخیره‌شده",
+                        text = "${recentDocuments.size} سند ذخیره‌شده",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            items(sampleDocuments) { doc ->
-                DocumentCard(
-                    document = doc,
-                    onClick = {
-                        val sampleBitmap = DocumentState.createSampleDocumentBitmap("${doc.title} (صفحه ۱)")
-                        DocumentState.setImageSource(sampleBitmap, resetBatch = true)
-                        if (doc.pageCount > 1) {
-                            for (i in 2..doc.pageCount) {
-                                val extra = DocumentState.createSampleDocumentBitmap("${doc.title} (صفحه $i)")
-                                DocumentState.pages.add(DocumentPage(rawBitmap = extra, croppedBitmap = extra))
-                            }
+            if (recentDocuments.isEmpty()) {
+                item {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Description,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.size(42.dp)
+                            )
+                            Text(
+                                text = "هنوز هیچ مدرکی اسکن نکرده‌اید",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "با استفاده از دوربین یا گالری در پایین صفحه اولین مدرک خود را اسکن نمایید.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                        onNavigateToPreview(doc.id)
                     }
-                )
+                }
+            } else {
+                items(recentDocuments, key = { it.id }) { doc ->
+                    DocumentCard(
+                        document = doc,
+                        onClick = {
+                            val pagesBitmaps = RecentDocumentsRepository.loadDocumentPages(context, doc.id)
+                            if (pagesBitmaps.isNotEmpty()) {
+                                DocumentState.setImageSource(pagesBitmaps.first(), resetBatch = true)
+                                if (pagesBitmaps.size > 1) {
+                                    for (i in 1 until pagesBitmaps.size) {
+                                        val extra = pagesBitmaps[i]
+                                        DocumentState.pages.add(DocumentPage(rawBitmap = extra, croppedBitmap = extra))
+                                    }
+                                }
+                            }
+                            onNavigateToPreview(doc.id)
+                        },
+                        onDelete = {
+                            recentDocuments = RecentDocumentsRepository.deleteDocument(context, doc.id)
+                            Toast.makeText(context, "سند از مدارک اخیر حذف شد", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
             }
 
             item {
@@ -328,8 +367,13 @@ fun HomeScreen(
 @Composable
 fun DocumentCard(
     document: ScannedDocument,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
+    val thumbnailBitmap = remember(document.thumbnailPath) {
+        RecentDocumentsRepository.loadThumbnail(document.thumbnailPath)
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -347,36 +391,45 @@ fun DocumentCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // تصویر بندانگشتی یا نماد مدرک
+            // تصویر بندانگشتی واقعی مدرک یا نماد پیش‌فرض
             Box(
                 modifier = Modifier
-                    .size(62.dp)
+                    .size(64.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(PrimaryBlue.copy(alpha = 0.08f))
                     .border(
                         1.dp,
-                        MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
                         RoundedCornerShape(12.dp)
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Description,
-                        contentDescription = null,
-                        tint = PrimaryBlue,
-                        modifier = Modifier.size(26.dp)
+                if (thumbnailBitmap != null) {
+                    Image(
+                        bitmap = thumbnailBitmap.asImageBitmap(),
+                        contentDescription = document.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "${document.pageCount} ص",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = PrimaryBlue
-                    )
+                } else {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Description,
+                            contentDescription = null,
+                            tint = PrimaryBlue,
+                            modifier = Modifier.size(26.dp)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "${document.pageCount} ص",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryBlue
+                        )
+                    }
                 }
             }
 
@@ -389,18 +442,51 @@ fun DocumentCard(
                     text = document.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = document.date,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Text(
-                    text = document.fileSize,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${document.pageCount} صفحه",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "•",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = document.fileSize,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // دکمه حذف مدرک
+            if (onDelete != null) {
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "حذف مدرک",
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.65f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }

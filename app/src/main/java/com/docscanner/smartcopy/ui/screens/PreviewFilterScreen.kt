@@ -36,6 +36,7 @@ import androidx.core.content.ContextCompat
 import com.docscanner.smartcopy.model.DocumentState
 import com.docscanner.smartcopy.model.FilterType
 import com.docscanner.smartcopy.util.DocumentFilterProcessor
+import com.docscanner.smartcopy.util.RecentDocumentsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -196,7 +197,7 @@ fun PreviewFilterScreen(
                         )
                     }
 
-                    // دکمه ذخیره تصویر جاری در گالری
+                    // دکمه ذخیره تصویر جاری در گالری و مدارک اخیر
                     FilledTonalButton(
                         onClick = {
                             val bitmapToSave = processedBitmap ?: baseBitmap
@@ -205,13 +206,26 @@ fun PreviewFilterScreen(
                                 bitmap = bitmapToSave,
                                 title = "SmartDoc_Page${activeIndex + 1}"
                             )
-                            if (savedUri != null) {
-                                Toast.makeText(
-                                    context,
-                                    "صفحه جاری در گالری ذخیره شد",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+
+                            // ذخیره تمام صفحات پردازش‌شده در مخزن مدارک اخیر
+                            val allPages = pages.map { it.processedBitmap ?: it.croppedBitmap }
+                            val pagesToSave = if (allPages.isNotEmpty()) allPages else listOf(bitmapToSave)
+                            val titleToSave = if (docId.startsWith("doc_") && !docId.startsWith("doc_real_")) {
+                                "سند اسکن‌شده"
+                            } else {
+                                "مدرک اسکن‌شده ${pagesToSave.size} صفحه‌ای"
                             }
+                            RecentDocumentsRepository.saveDocument(
+                                context = context,
+                                title = titleToSave,
+                                pages = pagesToSave
+                            )
+
+                            Toast.makeText(
+                                context,
+                                "سند در مدارک اخیر و گالری ذخیره شد",
+                                Toast.LENGTH_SHORT
+                            ).show()
                             onSaveDocument(selectedFilter)
                         },
                         shape = RoundedCornerShape(10.dp),
@@ -597,19 +611,27 @@ fun PreviewFilterScreen(
                                 pageBitmaps = exportBitmaps,
                                 documentTitle = pdfTitle
                             )
+
+                            // ذخیره مدرک در مدارک اخیر
+                            RecentDocumentsRepository.saveDocument(
+                                context = context,
+                                title = pdfTitle,
+                                pages = exportBitmaps
+                            )
+
                             isExportingPdf = false
                             showPdfExportDialog = false
 
                             if (savedUri != null) {
                                 Toast.makeText(
                                     context,
-                                    "فایل PDF با موفقیت در پوشه Downloads ذخیره شد",
+                                    "فایل PDF ذخیره شد و در مدارک اخیر ثبت گردید",
                                     Toast.LENGTH_LONG
                                 ).show()
                             } else {
                                 Toast.makeText(
                                     context,
-                                    "فایل PDF با موفقیت تولید شد",
+                                    "فایل PDF با موفقیت در مدارک اخیر ثبت شد",
                                     Toast.LENGTH_SHORT
                                 ).show()
                             }
